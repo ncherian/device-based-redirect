@@ -1,7 +1,7 @@
 <?php
 /*
 Plugin Name: Device Based Redirect
-Plugin URI:  https://indimakes.com/wp/device-based-redirect
+Plugin URI:  https://github.com/ncherian/device-based-redirect
 Description: A plugin that redirects users to the App Store or Google Play Store based on their device type (iOS/Android), with options to select the page and set URLs in the admin dashboard.
 Version:     1.0.0
 Author:      Nithin Paul Cherian
@@ -33,8 +33,8 @@ function device_based_redirect_activate() {
 }
 
 function device_based_redirect_deactivate() {
-    delete_option(DEVICE_REDIRECT_ENABLED_KEY);
-    delete_option(DEVICE_REDIRECT_SETTINGS_KEY);
+    // delete_option(DEVICE_REDIRECT_ENABLED_KEY);
+    // delete_option(DEVICE_REDIRECT_SETTINGS_KEY);
 }
 
 // ===============================================
