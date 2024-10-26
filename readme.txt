@@ -40,9 +40,8 @@ Yes, use the global enable/disable toggle in the settings.
 
 == Screenshots ==
 
-1. Settings page showing redirect configuration
-2. Adding a new page redirect
-3. Custom URL redirect configuration
+1. Accessing Device Redirect Settings Page
+2. Configuring Pages or URLs for Device Specific Redirection
 
 == Changelog ==
 

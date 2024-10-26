@@ -49,9 +49,9 @@ add_action('wp_ajax_save_device_redirect_settings', 'save_device_redirect_settin
 add_filter('wp_unique_post_slug', 'handle_redirect_slug_conflicts', 10, 6);
 
 
-define('DEVICE_REDIRECT_VERSION', '1.0.0');
-define('DEVICE_REDIRECT_MINIMUM_WP_VERSION', '5.0');
-define('DEVICE_REDIRECT_MINIMUM_PHP_VERSION', '7.2');
+// define('DEVICE_REDIRECT_VERSION', '1.0.0');
+// define('DEVICE_REDIRECT_MINIMUM_WP_VERSION', '5.0');
+// define('DEVICE_REDIRECT_MINIMUM_PHP_VERSION', '7.2');
 // URL pattern constants
 define('DEVICE_REDIRECT_IOS_URL_PATTERN', '/^https:\/\/apps\.apple\.com/');
 define('DEVICE_REDIRECT_ANDROID_URL_PATTERN', '/^https:\/\/play\.google\.com/');
