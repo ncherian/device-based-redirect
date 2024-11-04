@@ -285,42 +285,26 @@ function device_based_redirect_logic() {
 
                 // Only proceed if we have URLs to redirect to
                 if (!empty($ios_url) || !empty($android_url) || (!empty($backup_url) && $is_slug_redirect)) {
-                    ?>
-                    <script type="text/javascript">
-                        (function() {
-                            var userAgent = navigator.userAgent || navigator.vendor || window.opera;
-                            
-                            var config = {
-                                ios: <?php echo wp_json_encode($ios_url); ?>,
-                                android: <?php echo wp_json_encode($android_url); ?>,
-                                backup: <?php echo wp_json_encode($backup_url); ?>,
-                                current: <?php echo wp_json_encode($current_url); ?>
-                            };
+                    // Enqueue the redirect script
+                    wp_enqueue_script(
+                        'device-redirect-front',
+                        plugins_url('js/redirect.js', __FILE__),
+                        array(),
+                        DEVICE_REDIRECT_VERSION,
+                        true
+                    );
 
-                            function redirectToStore() {
-                                if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
-                                    if (config.ios) {
-                                        window.location.replace(config.ios);
-                                        return;
-                                    }
-                                }
-                                else if (/android/i.test(userAgent)) {
-                                    if (config.android) {
-                                        window.location.replace(config.android);
-                                        return;
-                                    }
-                                }
-                                else if (config.backup && config.backup !== config.current) {
-                                    window.location.replace(config.backup);
-                                    return;
-                                }
-                            }
-
-                            // Execute redirection
-                            redirectToStore();
-                        })();
-                    </script>
-                    <?php
+                    // Pass configuration to script
+                    wp_localize_script(
+                        'device-redirect-front',
+                        'deviceRedirectConfig',
+                        array(
+                            'ios' => wp_json_encode($ios_url),
+                            'android' => wp_json_encode($android_url),
+                            'backup' => wp_json_encode($backup_url),
+                            'current' => wp_json_encode($current_url)
+                        )
+                    );
                 }
                 break;
             }
