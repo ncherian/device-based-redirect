@@ -19,48 +19,49 @@ if (!defined('ABSPATH')) {
 // Plugin Activation/Deactivation
 // ===============================================
 
-register_activation_hook(__FILE__, 'device_based_redirect_activate');
-register_deactivation_hook(__FILE__, 'device_based_redirect_deactivate');
+register_activation_hook(__FILE__, 'dbre_activate');
+register_deactivation_hook(__FILE__, 'dbre_deactivate');
 
-function device_based_redirect_activate() {
+function dbre_activate() {
     // Initialize plugin options if they don't exist
-    if (false === get_option(DEVICE_REDIRECT_ENABLED_KEY)) {
-        add_option(DEVICE_REDIRECT_ENABLED_KEY, false);
+    if (false === get_option(DBRE_ENABLED_KEY)) {
+        add_option(DBRE_ENABLED_KEY, false);
     }
-    if (false === get_option(DEVICE_REDIRECT_SETTINGS_KEY)) {
-        add_option(DEVICE_REDIRECT_SETTINGS_KEY, []);
+    if (false === get_option(DBRE_SETTINGS_KEY)) {
+        add_option(DBRE_SETTINGS_KEY, []);
     }
 }
 
-function device_based_redirect_deactivate() {
-    // delete_option(DEVICE_REDIRECT_ENABLED_KEY);
-    // delete_option(DEVICE_REDIRECT_SETTINGS_KEY);
+function dbre_deactivate() {
+    // Deactivation code
 }
 
 // ===============================================
 // Admin UI Setup (React Integration)
 // ===============================================
 
-add_action('admin_menu', 'device_based_redirect_menu');
-add_action('admin_enqueue_scripts', 'device_based_redirect_scripts');
-add_action('template_redirect', 'device_based_redirect_logic');
-add_action('wp_ajax_save_device_redirect_settings', 'save_device_redirect_settings'); // Register the AJAX handler
+add_action('admin_menu', 'dbre_menu');
+add_action('admin_enqueue_scripts', 'dbre_scripts');
+add_action('template_redirect', 'dbre_redirect_logic');
+add_action('wp_ajax_save_device_redirect_settings', 'dbre_save_settings'); // Register the AJAX handler
+// Add this before your template_redirect hook
+// Add this early to catch custom slugs
+add_action('parse_request', 'dbre_handle_custom_slugs', 1);
+add_filter('wp_unique_post_slug', 'dbre_handle_slug_conflicts', 10, 6);
 
-add_filter('wp_unique_post_slug', 'handle_redirect_slug_conflicts', 10, 6);
 
-
-// define('DEVICE_REDIRECT_VERSION', '1.0.0');
 // define('DEVICE_REDIRECT_MINIMUM_WP_VERSION', '5.0');
 // define('DEVICE_REDIRECT_MINIMUM_PHP_VERSION', '7.2');
 // URL pattern constants
-define('DEVICE_REDIRECT_IOS_URL_PATTERN', '/^https:\/\/apps\.apple\.com/');
-define('DEVICE_REDIRECT_ANDROID_URL_PATTERN', '/^https:\/\/play\.google\.com/');
+define('DBRE_VERSION', '1.0.0');
+define('DBRE_IOS_URL_PATTERN', '/^https:\/\/apps\.apple\.com/');
+define('DBRE_ANDROID_URL_PATTERN', '/^https:\/\/play\.google\.com/');
 // Option names
-define('DEVICE_REDIRECT_SETTINGS_KEY', 'device_redirect_entries');
-define('DEVICE_REDIRECT_ENABLED_KEY', 'device_redirect_enabled');
+define('DBRE_SETTINGS_KEY', 'device_redirect_entries');
+define('DBRE_ENABLED_KEY', 'device_redirect_enabled');
 
 // Validation helper class
-class Device_Redirect_Validator {
+class DBRE_Validator {
     public static function is_valid_store_url($url, $type) {
         if (empty($url)) {
             return false;
@@ -70,9 +71,9 @@ class Device_Redirect_Validator {
 
         switch ($type) {
             case 'ios':
-                return (bool) preg_match(DEVICE_REDIRECT_IOS_URL_PATTERN, $url);
+                return (bool) preg_match(DBRE_IOS_URL_PATTERN, $url);
             case 'android':
-                return (bool) preg_match(DEVICE_REDIRECT_ANDROID_URL_PATTERN, $url);
+                return (bool) preg_match(DBRE_ANDROID_URL_PATTERN, $url);
             default:
                 return false;
         }
@@ -107,17 +108,21 @@ class Device_Redirect_Validator {
     }
 }
 
-function device_based_redirect_menu() {
+function dbre_menu() {
     add_options_page(
         'Device Based Redirection Settings',
         'Device Redirects',
         'manage_options',
         'device-redirects',
-        'device_based_redirect_settings'
+        'dbre_settings_page'
     );
 }
 
-function device_based_redirect_scripts($hook) {
+function dbre_settings_page() {
+    echo '<div id="device-redirect-settings"></div>';
+}
+
+function dbre_scripts($hook) {
     // Only load on our plugin's page
     if ($hook !== 'settings_page_device-redirects') {
         return;
@@ -133,7 +138,7 @@ function device_based_redirect_scripts($hook) {
     );
 
     // Get all saved settings
-    $saved_settings = get_option(DEVICE_REDIRECT_SETTINGS_KEY, []);
+    $saved_settings = get_option(DBRE_SETTINGS_KEY, []);
     
     // Ensure we're passing a proper array
     if (!is_array($saved_settings)) {
@@ -158,16 +163,12 @@ function device_based_redirect_scripts($hook) {
         'homeUrl' => home_url(),
         'pages' => $formatted_pages,
         'settings' => $saved_settings,
-        'globalEnabled' => get_option(DEVICE_REDIRECT_ENABLED_KEY, false),
+        'globalEnabled' => get_option(DBRE_ENABLED_KEY, false),
         'pluginUrl' => plugins_url('', __FILE__),
     ]);
 }
 
-function device_based_redirect_settings() {
-    echo '<div id="device-redirect-settings"></div>';
-}
-
-function save_device_redirect_settings() {
+function dbre_save_settings() {
     check_ajax_referer('device_redirect_nonce', 'nonce');
     
     if (!current_user_can('manage_options')) {
@@ -229,8 +230,8 @@ function save_device_redirect_settings() {
         false;
 
     // Save the sanitized settings
-    update_option(DEVICE_REDIRECT_SETTINGS_KEY, $sanitized_settings);
-    update_option(DEVICE_REDIRECT_ENABLED_KEY, $global_enabled);
+    update_option(DBRE_SETTINGS_KEY, $sanitized_settings);
+    update_option(DBRE_ENABLED_KEY, $global_enabled);
 
     wp_send_json_success([
         'message' => 'Settings saved successfully!',
@@ -243,22 +244,33 @@ function save_device_redirect_settings() {
 // ===============================================
 // Redirection Logic
 // ===============================================
-function device_based_redirect_logic() {
+function dbre_redirect_logic() {
     try {
         // Check if redirection is globally enabled
-        if (!get_option(DEVICE_REDIRECT_ENABLED_KEY)) {
+        if (!get_option(DBRE_ENABLED_KEY)) {
             return;
         }
 
         // Get the redirection settings for pages and slugs
-        $redirect_pages = get_option(DEVICE_REDIRECT_SETTINGS_KEY, []);
+        $redirect_pages = get_option(DBRE_SETTINGS_KEY, []);
         if (empty($redirect_pages) || !is_array($redirect_pages)) {
             return;
         }
 
         $current_page_id = get_the_ID();
         $current_url = home_url(add_query_arg(NULL, NULL));
-        $current_slug = isset($_SERVER['REQUEST_URI']) ? trim(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])), '/') : '';
+        //$current_slug = isset($_SERVER['REQUEST_URI']) ? trim(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])), '/') : '';
+        $current_slug = '';
+        if (isset($_SERVER['REQUEST_URI'])) {
+            $request_path = trim(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])), '/');
+            $site_path = trim(parse_url(site_url(), PHP_URL_PATH), '/');
+            
+            if ($site_path && strpos($request_path, $site_path) === 0) {
+                $current_slug = substr($request_path, strlen($site_path) + 1);
+            } else {
+                $current_slug = $request_path;
+            }
+        }
         foreach ($redirect_pages as $page_id_or_slug => $settings) {
             // Validate settings
             if (!is_array($settings)) {
@@ -291,7 +303,7 @@ function device_based_redirect_logic() {
                         'device-redirect-front',
                         plugins_url('js/redirect.js', __FILE__),
                         array(),
-                        DEVICE_REDIRECT_VERSION,
+                        DBRE_VERSION,
                         true
                     );
 
@@ -300,10 +312,10 @@ function device_based_redirect_logic() {
                         'device-redirect-front',
                         'deviceRedirectConfig',
                         array(
-                            'ios' => wp_json_encode($ios_url),
-                            'android' => wp_json_encode($android_url),
-                            'backup' => wp_json_encode($backup_url),
-                            'current' => wp_json_encode($current_url)
+                            'ios' => esc_js($ios_url),
+                            'android' => esc_js($android_url),
+                            'backup' => esc_js($backup_url),
+                            'current' => esc_js($current_url)
                         )
                     );
                 }
@@ -322,7 +334,7 @@ function device_based_redirect_logic() {
 add_action('rest_api_init', function () {
     register_rest_route('device-redirect/v1', '/validate-slug', array(
         'methods' => 'GET',
-        'callback' => 'validate_redirect_slug',
+        'callback' => 'dbre_validate_slug',
         'permission_callback' => function() {
             return current_user_can('manage_options');
         },
@@ -335,7 +347,7 @@ add_action('rest_api_init', function () {
     ));
 });
 
-function validate_redirect_slug($request) {
+function dbre_validate_slug($request) {
     $slug = strtolower(trim($request->get_param('slug')));
     
     // Check WordPress posts and pages
@@ -362,7 +374,7 @@ function validate_redirect_slug($request) {
     }
     
     // Get current redirect settings
-    $redirect_pages = get_option(DEVICE_REDIRECT_SETTINGS_KEY, []);
+    $redirect_pages = get_option(DBRE_SETTINGS_KEY, []);
     
     // Check existing redirects
     foreach ($redirect_pages as $existing_slug => $settings) {
@@ -378,8 +390,8 @@ function validate_redirect_slug($request) {
     return ['available' => true];
 }
 
-function handle_redirect_slug_conflicts($slug, $post_ID, $post_status, $post_type, $post_parent, $original_slug) {
-    $redirect_pages = get_option(DEVICE_REDIRECT_SETTINGS_KEY, []);
+function dbre_handle_slug_conflicts($slug, $post_ID, $post_status, $post_type, $post_parent, $original_slug) {
+    $redirect_pages = get_option(DBRE_SETTINGS_KEY, []);
     
     foreach ($redirect_pages as $existing_slug => $settings) {
         if (!is_numeric($existing_slug) && strtolower($existing_slug) === strtolower($slug)) {
@@ -398,3 +410,86 @@ function handle_redirect_slug_conflicts($slug, $post_ID, $post_status, $post_typ
     }
     return $slug;
 }
+function dbre_handle_custom_slugs($wp) {
+    if (!get_option(DBRE_ENABLED_KEY)) {
+        return;
+    }
+
+    // Get current slug using same logic
+    $request_path = isset($_SERVER['REQUEST_URI']) ? 
+        trim(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])), '/') : '';
+    $site_path = trim(parse_url(site_url(), PHP_URL_PATH), '/');
+    
+    $current_slug = '';
+    if ($site_path && strpos($request_path, $site_path) === 0) {
+        $current_slug = substr($request_path, strlen($site_path) + 1);
+    } else {
+        $current_slug = $request_path;
+    }
+
+    // Check redirects
+    $redirect_pages = get_option(DBRE_SETTINGS_KEY, []);
+    foreach ($redirect_pages as $page_id_or_slug => $settings) {
+        if (!is_numeric($page_id_or_slug) && 
+            $page_id_or_slug === $current_slug && 
+            !empty($settings['enabled'])) {
+
+            // Get device type
+            $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+            $is_ios = preg_match('/(ipad|iphone|ipod)/i', $user_agent);
+            $is_android = preg_match('/android/i', $user_agent);
+            
+            // Check if relevant store URL exists for the device
+            $has_relevant_store_url = ($is_ios && !empty($settings['ios_url'])) || 
+                                    ($is_android && !empty($settings['android_url']));
+
+            // If it's a mobile device and has relevant store URL
+            if (($is_ios || $is_android) && $has_relevant_store_url) {
+                // Set 200 status
+                status_header(200);
+
+                // First localize the script with the configuration
+                wp_register_script(
+                    'device-redirect-front',
+                    plugins_url('js/redirect.js', __FILE__),
+                    array(),
+                    DBRE_VERSION,
+                    false
+                );
+
+                // Pass configuration to script
+                wp_localize_script(
+                    'device-redirect-front',
+                    'deviceRedirectConfig',
+                    array(
+                        'ios' => esc_url($settings['ios_url'] ?? ''),
+                        'android' => esc_url($settings['android_url'] ?? ''),
+                        'backup' => esc_url($settings['backup_url'] ?? ''),
+                        'current' => esc_url(home_url(add_query_arg(NULL, NULL)))
+                    )
+                );
+
+                // Now enqueue the script
+                wp_enqueue_script('device-redirect-front');
+
+                // Use our custom template with correct path
+                add_filter('template_include', function($template) {
+                    return plugin_dir_path(__FILE__) . 'templates/redirect-template.php';
+                }, 999);
+                
+                return;
+            }
+
+            // For all other cases (non-mobile or no relevant store URL)
+            if (!empty($settings['backup_url'])) {
+                wp_redirect(esc_url($settings['backup_url']));
+                exit;
+            } else {
+                // No backup URL, redirect to homepage
+                wp_redirect(home_url());
+                exit;
+            }
+        }
+    }
+}
+
