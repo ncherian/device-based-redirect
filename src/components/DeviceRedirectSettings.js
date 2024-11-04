@@ -771,10 +771,11 @@ const GlobalSettings = () => {
         </div>
         <div className="coffee-button-container">
             <a href="https://www.buymeacoffee.com/indimakes" target="_blank" rel="noopener noreferrer">
-            <img 
-                src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=☕&slug=indimakes&button_colour=FF5F5F&font_colour=ffffff&font_family=Cookie&outline_colour=000000&coffee_colour=FFDD00" 
-                alt="Buy Me A Coffee"
-            />
+                <img 
+                    src={deviceRedirectData.pluginUrl + '/assets/bmc-button.png'}
+                    alt="Buy Me A Coffee"
+                    className="coffee-button-img"
+                />
             </a>
         </div>
         </div>

@@ -158,7 +158,8 @@ function device_based_redirect_scripts($hook) {
         'homeUrl' => home_url(),
         'pages' => $formatted_pages,
         'settings' => $saved_settings,
-        'globalEnabled' => get_option(DEVICE_REDIRECT_ENABLED_KEY, false)
+        'globalEnabled' => get_option(DEVICE_REDIRECT_ENABLED_KEY, false),
+        'pluginUrl' => plugins_url('', __FILE__),
     ]);
 }
 

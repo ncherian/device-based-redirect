@@ -116,31 +116,7 @@
     box-shadow: 0 1px 1px rgba(0,0,0,.04);
   }
   
-  /* Buy Me Coffee Button */
-  .buy-me-coffee {
-    margin-top: 30px;
-    text-align: center;
-  }
-  
-  .coffee-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    background: #FF5F5F;
-    color: white;
-    text-decoration: none;
-    border-radius: 5px;
-    font-size: 16px;
-    transition: background-color 0.3s;
-  }
-  
-  .coffee-button:hover {
-    background: #FF4F4F;
-    color: white;
-  }
-  
-.coffee-section {
+  .coffee-section {
     margin-top: 40px;
     padding: 20px;
     background: #fff;
@@ -166,26 +142,10 @@
     padding: 0;
   }
   
-  .coffee-button-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-  
-  .coffee-button-container img {
-    transition: transform 0.2s ease;
-  }
-  
-  .coffee-button-container img:hover {
-    transform: scale(1.02);
-  }
-  
-  /* Add a subtle highlight effect on hover */
-  .coffee-section:hover {
+  .add-a-subtle-highlight-effect-on-hover {
     border-color: #FF5F5F;
   }
   
-  /* Global Settings */
   .global-settings {
     margin-bottom: 20px;
     padding: 15px;
@@ -587,4 +547,21 @@
 
 .slug-input:focus {
   outline: none;
+}
+
+.coffee-button-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 20px 0;
+}
+
+.coffee-button-img {
+    height: 40px;
+    width: auto;
+    transition: transform 0.2s ease;
+}
+
+.coffee-button-img:hover {
+    transform: scale(1.02);
 }
