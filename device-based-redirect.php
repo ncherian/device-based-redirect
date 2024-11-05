@@ -4,7 +4,7 @@ Plugin Name: Device Based Redirect
 Plugin URI:  https://github.com/ncherian/device-based-redirect
 Description: A plugin that redirects users to the App Store or Google Play Store based on their device type (iOS/Android), with options to select the page and set URLs in the admin dashboard.
 Version:     1.0.0
-Author:      Nithin Paul Cherian
+Author:      Indimakes
 Author URI:  https://indimakes.com
 License:     GPL2
 */
