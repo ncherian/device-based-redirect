@@ -56,8 +56,8 @@ define('DBRE_VERSION', '1.0.0');
 define('DBRE_IOS_URL_PATTERN', '/^https:\/\/apps\.apple\.com/');
 define('DBRE_ANDROID_URL_PATTERN', '/^https:\/\/play\.google\.com/');
 // Option names
-define('DBRE_SETTINGS_KEY', 'device_redirect_entries');
-define('DBRE_ENABLED_KEY', 'device_redirect_enabled');
+define('DBRE_SETTINGS_KEY', 'dbre_entries');
+define('DBRE_ENABLED_KEY', 'dbre_enabled');
 
 // Validation helper class
 class DBRE_Validator {
