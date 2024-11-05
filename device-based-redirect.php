@@ -262,7 +262,7 @@ function dbre_redirect_logic() {
         $current_slug = '';
         if (isset($_SERVER['REQUEST_URI'])) {
             $request_path = trim(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])), '/');
-            $site_path = trim(parse_url(site_url(), PHP_URL_PATH), '/');
+            $site_path = trim(wp_parse_url(site_url(), PHP_URL_PATH), '/');
             
             if ($site_path && strpos($request_path, $site_path) === 0) {
                 $current_slug = substr($request_path, strlen($site_path) + 1);
@@ -282,21 +282,14 @@ function dbre_redirect_logic() {
             }
 
             $is_page_redirect = is_numeric($page_id_or_slug) && $page_id_or_slug == $current_page_id;
-            $is_slug_redirect = !is_numeric($page_id_or_slug) && $page_id_or_slug == $current_slug;
 
-            if ($is_page_redirect || $is_slug_redirect) {
+            if ($is_page_redirect) {
                 // Sanitize URLs
                 $ios_url = !empty($settings['ios_url']) ? esc_url($settings['ios_url']) : '';
                 $android_url = !empty($settings['android_url']) ? esc_url($settings['android_url']) : '';
-                $backup_url = $is_slug_redirect && !empty($settings['backup_url']) ? esc_url($settings['backup_url']) : '';
-
-                // Set 200 status for custom slugs to prevent 404
-                if ($is_slug_redirect) {
-                    status_header(200);
-                }
 
                 // Only proceed if we have URLs to redirect to
-                if (!empty($ios_url) || !empty($android_url) || (!empty($backup_url) && $is_slug_redirect)) {
+                if (!empty($ios_url) || !empty($android_url)) {
                     // Enqueue the redirect script
                     wp_enqueue_script(
                         'device-redirect-front',
@@ -313,7 +306,6 @@ function dbre_redirect_logic() {
                         array(
                             'ios' => esc_js($ios_url),
                             'android' => esc_js($android_url),
-                            'backup' => esc_js($backup_url),
                             'current' => esc_js($current_url)
                         )
                     );
@@ -415,10 +407,10 @@ function dbre_handle_custom_slugs($wp) {
         return;
     }
 
-    // Get current slug using same logic
+    // Get current slug using wp_parse_url
     $request_path = isset($_SERVER['REQUEST_URI']) ? 
         trim(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])), '/') : '';
-    $site_path = trim(parse_url(site_url(), PHP_URL_PATH), '/');
+    $site_path = trim(wp_parse_url(site_url(), PHP_URL_PATH), '/');
     
     $current_slug = '';
     if ($site_path && strpos($request_path, $site_path) === 0) {
@@ -434,8 +426,10 @@ function dbre_handle_custom_slugs($wp) {
             $page_id_or_slug === $current_slug && 
             !empty($settings['enabled'])) {
 
-            // Get device type
-            $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+            // Get device type - properly sanitized and unslashed
+            $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? 
+                sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
+            
             $is_ios = preg_match('/(ipad|iphone|ipod)/i', $user_agent);
             $is_android = preg_match('/android/i', $user_agent);
             
@@ -445,9 +439,7 @@ function dbre_handle_custom_slugs($wp) {
 
             // If it's a mobile device and has relevant store URL
             if (($is_ios || $is_android) && $has_relevant_store_url) {
-                // Set 200 status
-               // status_header(200);
-
+            
                 // First localize the script with the configuration
                 wp_register_script(
                     'device-redirect-front',
@@ -499,10 +491,10 @@ function dbre_modify_redirect_canonical() {
 }
 
 function dbre_prevent_old_slug_redirect($redirect_url, $requested_url) {
-    // Get current slug
+    // Get current slug using wp_parse_url
     $request_path = isset($_SERVER['REQUEST_URI']) ? 
         trim(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])), '/') : '';
-    $site_path = trim(parse_url(site_url(), PHP_URL_PATH), '/');
+    $site_path = trim(wp_parse_url(site_url(), PHP_URL_PATH), '/');
     
     $current_slug = '';
     if ($site_path && strpos($request_path, $site_path) === 0) {
