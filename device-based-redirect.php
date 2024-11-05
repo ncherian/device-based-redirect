@@ -43,10 +43,9 @@ function dbre_deactivate() {
 add_action('admin_menu', 'dbre_menu');
 add_action('admin_enqueue_scripts', 'dbre_scripts');
 add_action('template_redirect', 'dbre_redirect_logic');
-add_action('wp_ajax_save_device_redirect_settings', 'dbre_save_settings'); // Register the AJAX handler
-// Add this before your template_redirect hook
-// Add this early to catch custom slugs
 add_action('parse_request', 'dbre_handle_custom_slugs', 1);
+add_action('init', 'dbre_modify_redirect_canonical', 0);
+add_action('wp_ajax_save_device_redirect_settings', 'dbre_save_settings'); 
 add_filter('wp_unique_post_slug', 'dbre_handle_slug_conflicts', 10, 6);
 
 
@@ -410,6 +409,7 @@ function dbre_handle_slug_conflicts($slug, $post_ID, $post_status, $post_type, $
     }
     return $slug;
 }
+
 function dbre_handle_custom_slugs($wp) {
     if (!get_option(DBRE_ENABLED_KEY)) {
         return;
@@ -446,7 +446,7 @@ function dbre_handle_custom_slugs($wp) {
             // If it's a mobile device and has relevant store URL
             if (($is_ios || $is_android) && $has_relevant_store_url) {
                 // Set 200 status
-                status_header(200);
+               // status_header(200);
 
                 // First localize the script with the configuration
                 wp_register_script(
@@ -491,5 +491,40 @@ function dbre_handle_custom_slugs($wp) {
             }
         }
     }
+}
+
+
+function dbre_modify_redirect_canonical() {
+    add_filter('redirect_canonical', 'dbre_prevent_old_slug_redirect', 10, 2);
+}
+
+function dbre_prevent_old_slug_redirect($redirect_url, $requested_url) {
+    // Get current slug
+    $request_path = isset($_SERVER['REQUEST_URI']) ? 
+        trim(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])), '/') : '';
+    $site_path = trim(parse_url(site_url(), PHP_URL_PATH), '/');
+    
+    $current_slug = '';
+    if ($site_path && strpos($request_path, $site_path) === 0) {
+        $current_slug = substr($request_path, strlen($site_path) + 1);
+    } else {
+        $current_slug = $request_path;
+    }
+
+    // Remove query strings if any
+    $current_slug = strtok($current_slug, '?');
+
+    // Check if this slug exists in our redirects
+    $redirect_pages = get_option(DBRE_SETTINGS_KEY, []);
+    foreach ($redirect_pages as $page_id_or_slug => $settings) {
+        if (!is_numeric($page_id_or_slug) && 
+            $page_id_or_slug === $current_slug && 
+            !empty($settings['enabled'])) {
+            // Return false to prevent WordPress's redirect
+            return false;
+        }
+    }
+
+    return $redirect_url;
 }
 
