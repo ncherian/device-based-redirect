@@ -262,7 +262,8 @@ function dbre_redirect_logic() {
         $current_slug = '';
         if (isset($_SERVER['REQUEST_URI'])) {
             $request_path = trim(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])), '/');
-            $site_path = trim(wp_parse_url(site_url(), PHP_URL_PATH), '/');
+            $site_path = wp_parse_url(site_url(), PHP_URL_PATH);
+            $site_path = $site_path ? trim($site_path, '/') : '';
             
             if ($site_path && strpos($request_path, $site_path) === 0) {
                 $current_slug = substr($request_path, strlen($site_path) + 1);
@@ -410,7 +411,8 @@ function dbre_handle_custom_slugs($wp) {
     // Get current slug using wp_parse_url
     $request_path = isset($_SERVER['REQUEST_URI']) ? 
         trim(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])), '/') : '';
-    $site_path = trim(wp_parse_url(site_url(), PHP_URL_PATH), '/');
+    $site_path = wp_parse_url(site_url(), PHP_URL_PATH);
+    $site_path = $site_path ? trim($site_path, '/') : '';
     
     $current_slug = '';
     if ($site_path && strpos($request_path, $site_path) === 0) {
@@ -494,7 +496,8 @@ function dbre_prevent_old_slug_redirect($redirect_url, $requested_url) {
     // Get current slug using wp_parse_url
     $request_path = isset($_SERVER['REQUEST_URI']) ? 
         trim(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])), '/') : '';
-    $site_path = trim(wp_parse_url(site_url(), PHP_URL_PATH), '/');
+    $site_path = wp_parse_url(site_url(), PHP_URL_PATH);
+    $site_path = $site_path ? trim($site_path, '/') : '';
     
     $current_slug = '';
     if ($site_path && strpos($request_path, $site_path) === 0) {
