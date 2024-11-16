@@ -206,7 +206,7 @@ const handleSlugRedirectChange = (slug, field, value) => {
             title: pageTitle,
             iosUrl: '',
             androidUrl: '',
-            enabled: false
+            enabled: true
         }
     ]);
     
@@ -282,7 +282,7 @@ const removeSlugRedirect = (slug) => {
         iosUrl: '',
         androidUrl: '',
         backupUrl: '',
-        enabled: false
+        enabled: true
       }]);
       
       setNewSlug('');

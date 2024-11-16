@@ -25,7 +25,7 @@ register_deactivation_hook(__FILE__, 'dbre_deactivate');
 function dbre_activate() {
     // Initialize plugin options if they don't exist
     if (false === get_option(DBRE_ENABLED_KEY)) {
-        add_option(DBRE_ENABLED_KEY, false);
+        add_option(DBRE_ENABLED_KEY, true);
     }
     if (false === get_option(DBRE_SETTINGS_KEY)) {
         add_option(DBRE_SETTINGS_KEY, []);
