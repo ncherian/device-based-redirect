@@ -210,9 +210,9 @@ const handleSlugRedirectChange = (slug, field, value) => {
     if (!url) return true; // Empty URLs are allowed
     
     const patterns = {
-      ios: /^https:\/\/apps\.apple\.com\/[a-z]{2}\/app\/[a-zA-Z0-9\-]+\/id[0-9]+$/,
-      android: /^https:\/\/play\.google\.com\/store\/apps\/details\?id=[a-zA-Z0-9\.\_]+$/,
-      backup: /^https?:\/\/[a-zA-Z0-9-._~:/?#\[\]@!$&'()*+,;=]+$/ 
+      ios: /^https:\/\/apps\.apple\.com\/[a-z]{2}\/app\/[a-zA-Z0-9\-]+\/id[0-9]+(\?[a-zA-Z0-9\-\_\=]+(&[a-zA-Z0-9\-\_\=]+)*)?$/,
+      android: /^https:\/\/play\.google\.com\/store\/apps\/details\?id=[a-zA-Z0-9\.\_]+(&[a-zA-Z0-9\-\_\=]+)*$/,
+      backup: /^https?:\/\/[a-zA-Z0-9-._~:/?#\[\]@!$&'()*+,;=%.]+$/ 
     };
     
     return patterns[type]?.test(url) ?? false;
