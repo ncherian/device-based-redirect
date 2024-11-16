@@ -1,6 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import './styles.css';
 
+const ToggleSwitch = ({ enabled, onChange, small = false }) => (
+  <label className={`toggle-switch ${small ? 'toggle-switch-small' : ''}`}>
+    <input
+      type="checkbox"
+      checked={enabled}
+      onChange={(e) => onChange(e.target.checked)}
+    />
+    <span className="toggle-slider"></span>
+  </label>
+);
+
 const DeviceRedirectSettings = () => {
     const [globalEnabled, setGlobalEnabled] = useState(deviceRedirectData.globalEnabled);
     const [pageRedirects, setPageRedirects] = useState([]);
@@ -452,14 +463,10 @@ const GlobalSettings = () => {
         
         <div className="global-settings-content">
           <div className="global-toggle-container">
-            <label className="toggle-switch">
-            <input
-                type="checkbox"
-                checked={globalEnabled}
-                onChange={(e) => handleGlobalEnabledChange(e.target.checked)}
+            <ToggleSwitch
+              enabled={globalEnabled}
+              onChange={handleGlobalEnabledChange}
             />
-              <span className="toggle-slider"></span>
-            </label>
             
             <div className="toggle-label">
               <span className="toggle-title">
@@ -606,15 +613,16 @@ const GlobalSettings = () => {
                     </div>
                     </td>
                     <td>
-                    <input
-                        type="checkbox"
-                        checked={redirect.enabled}
-                        onChange={(e) => {
+                    <ToggleSwitch
+                        enabled={redirect.enabled}
+                        onChange={(checked) => {
                         const updated = pageRedirects.map(r =>
-                            r.id === redirect.id ? { ...r, enabled: e.target.checked } : r
+                            r.id === redirect.id ? { ...r, enabled: checked } : r
                         );
                         setPageRedirects(updated);
+                        setHasUnsavedChanges(true);
                         }}
+                        small={true}
                     />
                     </td>
                     <td>
@@ -722,15 +730,16 @@ const GlobalSettings = () => {
                     </div>
                     </td>
                 <td>
-                    <input
-                    type="checkbox"
-                    checked={redirect.enabled}
-                    onChange={(e) => {
+                    <ToggleSwitch
+                        enabled={redirect.enabled}
+                        onChange={(checked) => {
                         const updated = slugRedirects.map(r =>
-                        r.slug === redirect.slug ? { ...r, enabled: e.target.checked } : r
+                            r.slug === redirect.slug ? { ...r, enabled: checked } : r
                         );
                         setSlugRedirects(updated);
-                    }}
+                        setHasUnsavedChanges(true);
+                        }}
+                        small={true}
                     />
                 </td>
                 <td>
