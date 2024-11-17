@@ -160,15 +160,79 @@ const handleSlugRedirectChange = (slug, field, value) => {
   // };
 
 
-  const removePageRedirect = (id) => {
+  const removePageRedirect = async (id) => {
     if (window.confirm('Are you sure you want to remove this redirect?')) {
-        setPageRedirects(pageRedirects.filter(redirect => redirect.id !== id));
+        // First update the local state
+        const updatedPageRedirects = pageRedirects.filter(redirect => redirect.id !== id);
+        setPageRedirects(updatedPageRedirects);
         
+        // Clear validation errors
         const newValidationErrors = { ...urlValidationErrors };
         delete newValidationErrors[`page-${id}-ios`];
         delete newValidationErrors[`page-${id}-android`];
+        delete newValidationErrors[`page-${id}-backup`];
         setUrlValidationErrors(newValidationErrors);
-        setHasUnsavedChanges(true);
+
+        // Prepare and save settings
+        const settings = {};
+        
+        updatedPageRedirects.forEach(redirect => {
+            settings[redirect.id] = {
+                ios_url: redirect.iosUrl,
+                android_url: redirect.androidUrl,
+                backup_url: redirect.backupUrl,
+                enabled: redirect.enabled
+            };
+        });
+        
+        slugRedirects.forEach(redirect => {
+            settings[redirect.slug] = {
+                ios_url: redirect.iosUrl,
+                android_url: redirect.androidUrl,
+                backup_url: redirect.backupUrl,
+                enabled: redirect.enabled
+            };
+        });
+
+        try {
+            const formData = new FormData();
+            formData.append('action', 'save_device_redirect_settings');
+            formData.append('nonce', deviceRedirectData.nonce);
+            formData.append('settings', JSON.stringify(settings));
+            
+            const response = await fetch(deviceRedirectData.ajaxUrl, {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                setInitialData({
+                    pageRedirects: updatedPageRedirects,
+                    slugRedirects: [...slugRedirects]
+                });
+                setHasUnsavedChanges(false);
+                
+                setNotification({
+                    message: 'Redirect removed successfully!',
+                    type: 'success'
+                });
+                
+                setTimeout(() => {
+                    setNotification(null);
+                }, 5000);
+            } else {
+                throw new Error(data.data || 'Save failed');
+            }
+        } catch (error) {
+            setNotification({
+                message: `Error removing redirect: ${error.message}`,
+                type: 'error'
+            });
+            // Revert the state if save failed
+            setPageRedirects(pageRedirects);
+        }
     }
 };
 
@@ -219,15 +283,79 @@ const handleSlugRedirectChange = (slug, field, value) => {
     return patterns[type]?.test(url) ?? false;
   };
 
-const removeSlugRedirect = (slug) => {
+const removeSlugRedirect = async (slug) => {
     if (window.confirm('Are you sure you want to remove this redirect?')) {
-        setSlugRedirects(slugRedirects.filter(redirect => redirect.slug !== slug));
+        // First update the local state
+        const updatedSlugRedirects = slugRedirects.filter(redirect => redirect.slug !== slug);
+        setSlugRedirects(updatedSlugRedirects);
         
+        // Clear validation errors
         const newValidationErrors = { ...urlValidationErrors };
         delete newValidationErrors[`slug-${slug}-ios`];
         delete newValidationErrors[`slug-${slug}-android`];
+        delete newValidationErrors[`slug-${slug}-backup`];
         setUrlValidationErrors(newValidationErrors);
-        setHasUnsavedChanges(true);
+
+        // Prepare and save settings
+        const settings = {};
+        
+        pageRedirects.forEach(redirect => {
+            settings[redirect.id] = {
+                ios_url: redirect.iosUrl,
+                android_url: redirect.androidUrl,
+                backup_url: redirect.backupUrl,
+                enabled: redirect.enabled
+            };
+        });
+        
+        updatedSlugRedirects.forEach(redirect => {
+            settings[redirect.slug] = {
+                ios_url: redirect.iosUrl,
+                android_url: redirect.androidUrl,
+                backup_url: redirect.backupUrl,
+                enabled: redirect.enabled
+            };
+        });
+
+        try {
+            const formData = new FormData();
+            formData.append('action', 'save_device_redirect_settings');
+            formData.append('nonce', deviceRedirectData.nonce);
+            formData.append('settings', JSON.stringify(settings));
+            
+            const response = await fetch(deviceRedirectData.ajaxUrl, {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                setInitialData({
+                    pageRedirects: [...pageRedirects],
+                    slugRedirects: updatedSlugRedirects
+                });
+                setHasUnsavedChanges(false);
+                
+                setNotification({
+                    message: 'Redirect removed successfully!',
+                    type: 'success'
+                });
+                
+                setTimeout(() => {
+                    setNotification(null);
+                }, 5000);
+            } else {
+                throw new Error(data.data || 'Save failed');
+            }
+        } catch (error) {
+            setNotification({
+                message: `Error removing redirect: ${error.message}`,
+                type: 'error'
+            });
+            // Revert the state if save failed
+            setSlugRedirects(slugRedirects);
+        }
     }
 };
   
