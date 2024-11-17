@@ -269,9 +269,9 @@ const handleSlugRedirectChange = (slug, field, value) => {
     if (!url) return true; // Empty URLs are allowed
     
     const patterns = {
-      ios: /^https:\/\/apps\.apple\.com\/[a-z]{2}\/app\/[a-zA-Z0-9\-]+\/id[0-9]+(\?[a-zA-Z0-9\-\_\=]+(&[a-zA-Z0-9\-\_\=]+)*)?$/,
-      android: /^https:\/\/play\.google\.com\/store\/apps\/details\?id=[a-zA-Z0-9\.\_]+(&[a-zA-Z0-9\-\_\=]+)*$/,
-      backup: /^https?:\/\/[a-zA-Z0-9-._~:/?#\[\]@!$&'()*+,;=%.]+$/ 
+      ios: /^https?:\/\/[a-zA-Z0-9-._~:/?#\[\]@!$&'()*+,;=%.]+$/,
+      android: /^https?:\/\/[a-zA-Z0-9-._~:/?#\[\]@!$&'()*+,;=%.]+$/,
+      backup: /^https?:\/\/[a-zA-Z0-9-._~:/?#\[\]@!$&'()*+,;=%.]+$/
     };
     
     return patterns[type]?.test(url) ?? false;
@@ -459,10 +459,8 @@ const removeSlugRedirect = async (slug) => {
     
     setNewSlug(value);
     
-    // Clear any previous error
-    if (error.type === 'slug') {
-      setError({ type: '', message: '' });
-    }
+    // Clear any error as soon as user types
+    setError({ type: '', message: '' });
   };
   
   // const handleBackupUrlChange = (slug, value) => {
@@ -511,17 +509,8 @@ const removeSlugRedirect = async (slug) => {
 
 // Add helper function to get appropriate error messages
 const getUrlErrorMessage = (type) => {
-    switch (type) {
-      case 'ios':
-        return 'Invalid App Store URL format';
-      case 'android':
-        return 'Invalid Play Store URL format';
-      case 'backup':
-        return 'Invalid URL format';
-      default:
-        return 'Invalid URL';
-    }
-  };
+  return 'Please enter a valid URL (starting with http:// or https://)';
+};
 
   const saveSettings = async () => {
     setSaving(true);
@@ -645,8 +634,44 @@ const handleCancelEdit = (redirect) => {
 
 const handleSaveEdit = async (redirect) => {
   const editedValues = editingValues[redirect.id];
-  const settings = {};
   
+  // Validate URLs
+  let hasValidationErrors = false;
+  const newValidationErrors = { ...urlValidationErrors };
+
+  // Validate iOS URL
+  if (editedValues.iosUrl && !validateUrl(editedValues.iosUrl, 'ios')) {
+    newValidationErrors[`${redirect.type}-${redirect.id}-ios`] = 'Invalid App Store URL format';
+    hasValidationErrors = true;
+  } else {
+    delete newValidationErrors[`${redirect.type}-${redirect.id}-ios`];
+  }
+
+  // Validate Android URL
+  if (editedValues.androidUrl && !validateUrl(editedValues.androidUrl, 'android')) {
+    newValidationErrors[`${redirect.type}-${redirect.id}-android`] = 'Invalid Play Store URL format';
+    hasValidationErrors = true;
+  } else {
+    delete newValidationErrors[`${redirect.type}-${redirect.id}-android`];
+  }
+
+  // Validate Backup URL
+  if (editedValues.backupUrl && !validateUrl(editedValues.backupUrl, 'backup')) {
+    newValidationErrors[`${redirect.type}-${redirect.id}-backup`] = 'Invalid URL format';
+    hasValidationErrors = true;
+  } else {
+    delete newValidationErrors[`${redirect.type}-${redirect.id}-backup`];
+  }
+
+  // Update validation errors state
+  setUrlValidationErrors(newValidationErrors);
+
+  // If there are validation errors, don't proceed with save
+  if (hasValidationErrors) {
+    return;
+  }
+
+  const settings = {};
   let updatedPageRedirects = [...pageRedirects];
   let updatedSlugRedirects = [...slugRedirects];
 
@@ -782,7 +807,11 @@ const handleSaveEdit = async (redirect) => {
               <label>Page Redirect</label>
               <select
                 value={selectedPage}
-                onChange={(e) => setSelectedPage(e.target.value)}
+                onChange={(e) => {
+                  setSelectedPage(e.target.value);
+                  // Clear any error when selection changes
+                  setError({ type: '', message: '' });
+                }}
               >
                 <option value="">Select a page</option>
                 {deviceRedirectData.pages.map(page => (
@@ -876,13 +905,21 @@ const handleSaveEdit = async (redirect) => {
                                 <input
                                   type="url"
                                   value={editingValues[redirect.id].iosUrl}
-                                  onChange={(e) => setEditingValues(prev => ({
-                                    ...prev,
-                                    [redirect.id]: {
-                                      ...prev[redirect.id],
-                                      iosUrl: e.target.value
-                                    }
-                                  }))}
+                                  onChange={(e) => {
+                                    setEditingValues(prev => ({
+                                      ...prev,
+                                      [redirect.id]: {
+                                        ...prev[redirect.id],
+                                        iosUrl: e.target.value
+                                      }
+                                    }));
+                                    // Clear validation error for this field
+                                    setUrlValidationErrors(prev => {
+                                      const newErrors = { ...prev };
+                                      delete newErrors[`${redirect.type}-${redirect.id}-ios`];
+                                      return newErrors;
+                                    });
+                                  }}
                                   placeholder="https://apps.apple.com/..."
                                   className={`regular-text ${urlValidationErrors[`${redirect.type}-${redirect.id}-ios`] ? 'error' : ''}`}
                                 />
@@ -900,13 +937,21 @@ const handleSaveEdit = async (redirect) => {
                                 <input
                                   type="url"
                                   value={editingValues[redirect.id].androidUrl}
-                                  onChange={(e) => setEditingValues(prev => ({
-                                    ...prev,
-                                    [redirect.id]: {
-                                      ...prev[redirect.id],
-                                      androidUrl: e.target.value
-                                    }
-                                  }))}
+                                  onChange={(e) => {
+                                    setEditingValues(prev => ({
+                                      ...prev,
+                                      [redirect.id]: {
+                                        ...prev[redirect.id],
+                                        androidUrl: e.target.value
+                                      }
+                                    }));
+                                    // Clear validation error for this field
+                                    setUrlValidationErrors(prev => {
+                                      const newErrors = { ...prev };
+                                      delete newErrors[`${redirect.type}-${redirect.id}-android`];
+                                      return newErrors;
+                                    });
+                                  }}
                                   placeholder="https://play.google.com/..."
                                   className={`regular-text ${urlValidationErrors[`${redirect.type}-${redirect.id}-android`] ? 'error' : ''}`}
                                 />
@@ -924,13 +969,21 @@ const handleSaveEdit = async (redirect) => {
                                 <input
                                   type="url"
                                   value={editingValues[redirect.id].backupUrl}
-                                  onChange={(e) => setEditingValues(prev => ({
-                                    ...prev,
-                                    [redirect.id]: {
-                                      ...prev[redirect.id],
-                                      backupUrl: e.target.value
-                                    }
-                                  }))}
+                                  onChange={(e) => {
+                                    setEditingValues(prev => ({
+                                      ...prev,
+                                      [redirect.id]: {
+                                        ...prev[redirect.id],
+                                        backupUrl: e.target.value
+                                      }
+                                    }));
+                                    // Clear validation error for this field
+                                    setUrlValidationErrors(prev => {
+                                      const newErrors = { ...prev };
+                                      delete newErrors[`${redirect.type}-${redirect.id}-backup`];
+                                      return newErrors;
+                                    });
+                                  }}
                                   placeholder="https://..."
                                   className={`regular-text ${urlValidationErrors[`${redirect.type}-${redirect.id}-backup`] ? 'error' : ''}`}
                                 />
