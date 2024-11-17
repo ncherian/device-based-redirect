@@ -26,6 +26,8 @@ const DeviceRedirectSettings = () => {
       pageRedirects: [],
       slugRedirects: []
     });
+    const [editingRedirects, setEditingRedirects] = useState({});
+    const [editingValues, setEditingValues] = useState({});
 
   // To set up the leave page warning
   useEffect(() => {
@@ -592,6 +594,166 @@ const getAllRedirects = () => {
   return [...pageRedirectsWithType, ...slugRedirectsWithType];
 };
 
+const handleEditClick = (redirect) => {
+  // First, check if any other redirect is being edited
+  const currentlyEditing = Object.entries(editingRedirects).find(([id, isEditing]) => isEditing);
+  
+  if (currentlyEditing) {
+    const [currentEditId] = currentlyEditing;
+    // Cancel the current edit first
+    setEditingRedirects(prev => ({
+      ...prev,
+      [currentEditId]: false
+    }));
+    setEditingValues(prev => {
+      const newValues = { ...prev };
+      delete newValues[currentEditId];
+      return newValues;
+    });
+  }
+
+  // Then start editing the new redirect
+  setEditingRedirects(prev => ({
+    ...prev,
+    [redirect.id]: true
+  }));
+  setEditingValues(prev => ({
+    ...prev,
+    [redirect.id]: {
+      iosUrl: redirect.iosUrl,
+      androidUrl: redirect.androidUrl,
+      backupUrl: redirect.backupUrl
+    }
+  }));
+};
+
+const handleCancelEdit = (redirect) => {
+  setEditingRedirects(prev => ({
+    ...prev,
+    [redirect.id]: false
+  }));
+  setEditingValues(prev => {
+    const newValues = { ...prev };
+    delete newValues[redirect.id];
+    return newValues;
+  });
+};
+
+const handleSaveEdit = async (redirect) => {
+  const editedValues = editingValues[redirect.id];
+  const settings = {};
+  
+  let updatedPageRedirects = [...pageRedirects];
+  let updatedSlugRedirects = [...slugRedirects];
+
+  // Prepare settings object
+  if (redirect.type === 'page') {
+    updatedPageRedirects = pageRedirects.map(r =>
+      r.id === redirect.id ? {
+        ...r,
+        iosUrl: editedValues.iosUrl,
+        androidUrl: editedValues.androidUrl,
+        backupUrl: editedValues.backupUrl
+      } : r
+    );
+    setPageRedirects(updatedPageRedirects);
+    
+    updatedPageRedirects.forEach(r => {
+      settings[r.id] = {
+        ios_url: r.iosUrl,
+        android_url: r.androidUrl,
+        backup_url: r.backupUrl,
+        enabled: r.enabled
+      };
+    });
+    
+    slugRedirects.forEach(r => {
+      settings[r.slug] = {
+        ios_url: r.iosUrl,
+        android_url: r.androidUrl,
+        backup_url: r.backupUrl,
+        enabled: r.enabled
+      };
+    });
+  } else {
+    updatedSlugRedirects = slugRedirects.map(r =>
+      r.slug === redirect.id ? {
+        ...r,
+        iosUrl: editedValues.iosUrl,
+        androidUrl: editedValues.androidUrl,
+        backupUrl: editedValues.backupUrl
+      } : r
+    );
+    setSlugRedirects(updatedSlugRedirects);
+    
+    pageRedirects.forEach(r => {
+      settings[r.id] = {
+        ios_url: r.iosUrl,
+        android_url: r.androidUrl,
+        backup_url: r.backupUrl,
+        enabled: r.enabled
+      };
+    });
+    
+    updatedSlugRedirects.forEach(r => {
+      settings[r.slug] = {
+        ios_url: r.iosUrl,
+        android_url: r.androidUrl,
+        backup_url: r.backupUrl,
+        enabled: r.enabled
+      };
+    });
+  }
+
+  try {
+    const formData = new FormData();
+    formData.append('action', 'save_device_redirect_settings');
+    formData.append('nonce', deviceRedirectData.nonce);
+    formData.append('settings', JSON.stringify(settings));
+    
+    const response = await fetch(deviceRedirectData.ajaxUrl, {
+      method: 'POST',
+      body: formData
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      // Update initialData to match current state
+      setInitialData({
+        pageRedirects: updatedPageRedirects,
+        slugRedirects: updatedSlugRedirects
+      });
+
+      setEditingRedirects(prev => ({
+        ...prev,
+        [redirect.id]: false
+      }));
+      setEditingValues(prev => {
+        const newValues = { ...prev };
+        delete newValues[redirect.id];
+        return newValues;
+      });
+      
+      setNotification({
+        message: 'Changes saved successfully!',
+        type: 'success'
+      });
+      
+      setTimeout(() => {
+        setNotification(null);
+      }, 5000);
+    } else {
+      throw new Error(data.data || 'Save failed');
+    }
+  } catch (error) {
+    setNotification({
+      message: `Error saving changes: ${error.message}`,
+      type: 'error'
+    });
+  }
+};
+
   return (
     <div className="wrap">
       <h1>Device-Based Redirection Settings</h1>
@@ -686,74 +848,135 @@ const getAllRedirects = () => {
                   </td>
                   <td>{redirect.displayUrl}</td>
                   <td className="url-actions-cell">
-                    <div className="url-fields-container">
-                      <div className="url-field">
-                        <label>iOS URL:</label>
-                        <div className="url-input-container">
-                          <input
-                            type="url"
-                            value={redirect.iosUrl}
-                            onChange={(e) => handleUrlChange(redirect.type, redirect.id, 'ios', e.target.value)}
-                            placeholder="https://apps.apple.com/..."
-                            className={`regular-text ${urlValidationErrors[`${redirect.type}-${redirect.id}-ios`] ? 'error' : ''}`}
-                          />
-                          {urlValidationErrors[`${redirect.type}-${redirect.id}-ios`] && (
-                            <div className="url-validation-error">
-                              {urlValidationErrors[`${redirect.type}-${redirect.id}-ios`]}
+                    {editingRedirects[redirect.id] ? (
+                      <>
+                        <div className="url-fields-container">
+                          <div className="url-field">
+                            <label>iOS URL:</label>
+                            <div className="url-input-container">
+                              <input
+                                type="url"
+                                value={editingValues[redirect.id].iosUrl}
+                                onChange={(e) => setEditingValues(prev => ({
+                                  ...prev,
+                                  [redirect.id]: {
+                                    ...prev[redirect.id],
+                                    iosUrl: e.target.value
+                                  }
+                                }))}
+                                placeholder="https://apps.apple.com/..."
+                                className={`regular-text ${urlValidationErrors[`${redirect.type}-${redirect.id}-ios`] ? 'error' : ''}`}
+                              />
+                              {urlValidationErrors[`${redirect.type}-${redirect.id}-ios`] && (
+                                <div className="url-validation-error">
+                                  {urlValidationErrors[`${redirect.type}-${redirect.id}-ios`]}
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="url-field">
-                        <label>Android URL:</label>
-                        <div className="url-input-container">
-                          <input
-                            type="url"
-                            value={redirect.androidUrl}
-                            onChange={(e) => handleUrlChange(redirect.type, redirect.id, 'android', e.target.value)}
-                            placeholder="https://play.google.com/..."
-                            className={`regular-text ${urlValidationErrors[`${redirect.type}-${redirect.id}-android`] ? 'error' : ''}`}
-                          />
-                          {urlValidationErrors[`${redirect.type}-${redirect.id}-android`] && (
-                            <div className="url-validation-error">
-                              {urlValidationErrors[`${redirect.type}-${redirect.id}-android`]}
+                          </div>
+                          
+                          <div className="url-field">
+                            <label>Android URL:</label>
+                            <div className="url-input-container">
+                              <input
+                                type="url"
+                                value={editingValues[redirect.id].androidUrl}
+                                onChange={(e) => setEditingValues(prev => ({
+                                  ...prev,
+                                  [redirect.id]: {
+                                    ...prev[redirect.id],
+                                    androidUrl: e.target.value
+                                  }
+                                }))}
+                                placeholder="https://play.google.com/..."
+                                className={`regular-text ${urlValidationErrors[`${redirect.type}-${redirect.id}-android`] ? 'error' : ''}`}
+                              />
+                              {urlValidationErrors[`${redirect.type}-${redirect.id}-android`] && (
+                                <div className="url-validation-error">
+                                  {urlValidationErrors[`${redirect.type}-${redirect.id}-android`]}
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      </div>
+                          </div>
 
-                      <div className="url-field">
-                        <label>Other Devices URL:</label>
-                        <div className="url-input-container">
-                          <input
-                            type="url"
-                            value={redirect.backupUrl}
-                            onChange={(e) => handleUrlChange(redirect.type, redirect.id, 'backup', e.target.value)}
-                            placeholder="https://..."
-                            className={`regular-text ${urlValidationErrors[`${redirect.type}-${redirect.id}-backup`] ? 'error' : ''}`}
-                          />
-                          {urlValidationErrors[`${redirect.type}-${redirect.id}-backup`] && (
-                            <div className="url-validation-error">
-                              {urlValidationErrors[`${redirect.type}-${redirect.id}-backup`]}
+                          <div className="url-field">
+                            <label>Other Devices URL:</label>
+                            <div className="url-input-container">
+                              <input
+                                type="url"
+                                value={editingValues[redirect.id].backupUrl}
+                                onChange={(e) => setEditingValues(prev => ({
+                                  ...prev,
+                                  [redirect.id]: {
+                                    ...prev[redirect.id],
+                                    backupUrl: e.target.value
+                                  }
+                                }))}
+                                placeholder="https://..."
+                                className={`regular-text ${urlValidationErrors[`${redirect.type}-${redirect.id}-backup`] ? 'error' : ''}`}
+                              />
+                              {urlValidationErrors[`${redirect.type}-${redirect.id}-backup`] && (
+                                <div className="url-validation-error">
+                                  {urlValidationErrors[`${redirect.type}-${redirect.id}-backup`]}
+                                </div>
+                              )}
                             </div>
-                          )}
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                    <div className="row-actions">
-                      <span className="remove">
-                        <button
-                          onClick={() => redirect.type === 'page' ? 
-                            removePageRedirect(redirect.id) : 
-                            removeSlugRedirect(redirect.id)
-                          }
-                          className="button-link"
-                        >
-                          Remove
-                        </button>
-                      </span>
-                    </div>
+                        <div className="edit-actions">
+                          <button
+                            onClick={() => handleSaveEdit(redirect)}
+                            className="button button-primary"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={() => handleCancelEdit(redirect)}
+                            className="button"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="url-display-container">
+                          <div className="url-display">
+                            <label>iOS URL:</label>
+                            <div className="url-value">{redirect.iosUrl || '—'}</div>
+                          </div>
+                          <div className="url-display">
+                            <label>Android URL:</label>
+                            <div className="url-value">{redirect.androidUrl || '—'}</div>
+                          </div>
+                          <div className="url-display">
+                            <label>Other Devices URL:</label>
+                            <div className="url-value">{redirect.backupUrl || '—'}</div>
+                          </div>
+                        </div>
+                        <div className="row-actions">
+                          <span className="edit">
+                            <button
+                              onClick={() => handleEditClick(redirect)}
+                              className="button-link"
+                            >
+                              Edit
+                            </button>
+                          </span>
+                          <span className="remove">
+                            <button
+                              onClick={() => redirect.type === 'page' ? 
+                                removePageRedirect(redirect.id) : 
+                                removeSlugRedirect(redirect.id)
+                              }
+                              className="button-link"
+                            >
+                              Remove
+                            </button>
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </td>
                   <td>
                     <ToggleSwitch
