@@ -26,6 +26,7 @@ const DeviceRedirectSettings = () => {
     const [selectedItems, setSelectedItems] = useState([]);
     const [selectAll, setSelectAll] = useState(false);
     const [bulkAction, setBulkAction] = useState('');
+    const [typeFilter, setTypeFilter] = useState('all');
 
   // Load initial data
   useEffect(() => {
@@ -584,10 +585,17 @@ const getAllRedirects = () => {
     ...redirect,
     type: 'custom',
     displayUrl: `${deviceRedirectData.homeUrl}/${redirect.slug}`,
-    id: redirect.slug // normalize the id field
+    id: redirect.slug
   }));
   
-  return [...pageRedirectsWithType, ...slugRedirectsWithType];
+  let allRedirects = [...pageRedirectsWithType, ...slugRedirectsWithType];
+  
+  // Apply type filter
+  if (typeFilter !== 'all') {
+    allRedirects = allRedirects.filter(redirect => redirect.type === typeFilter);
+  }
+  
+  return allRedirects;
 };
 
 const handleEditClick = (redirect) => {
@@ -1017,12 +1025,27 @@ const handleBulkAction = async (action) => {
                   onClick={() => {
                     if (bulkAction) {
                       handleBulkAction(bulkAction);
-                      setBulkAction(''); // Reset the select after action
+                      setBulkAction('');
                     }
                   }}
                 >
                   Apply
                 </button>
+              </div>
+              <div className="alignleft actions">
+                <select
+                  value={typeFilter}
+                  onChange={(e) => {
+                    setTypeFilter(e.target.value);
+                    setSelectedItems([]); // Clear selections when filter changes
+                    setSelectAll(false);
+                  }}
+                  className="filter-by-type"
+                >
+                  <option value="all">All Types</option>
+                  <option value="page">Page Redirects</option>
+                  <option value="custom">Custom URLs</option>
+                </select>
               </div>
               {selectedItems.length > 0 && (
                 <div className="alignleft actions">
@@ -1042,8 +1065,8 @@ const handleBulkAction = async (action) => {
                       onChange={handleSelectAll}
                     />
                   </td>
-                  <th>Type</th>
                   <th>Page/Custom URL</th>
+                  <th>Type</th>
                   <th>Redirected URLs</th>
                   <th>Enabled</th>
                 </tr>
@@ -1058,12 +1081,12 @@ const handleBulkAction = async (action) => {
                         onChange={() => handleSelectItem(redirect.id)}
                       />
                     </th>
+                    <td data-label="Page/Custom URL">{redirect.displayUrl}</td>
                     <td data-label="Type">
                       <span className={`redirect-type ${redirect.type}`}>
                         {redirect.type === 'page' ? 'Page Redirect' : 'Custom URL'}
                       </span>
                     </td>
-                    <td data-label="Page/Custom URL">{redirect.displayUrl}</td>
                     <td data-label="Redirected URLs" className="url-actions-cell">
                       {editingRedirects[redirect.id] ? (
                         <>
@@ -1338,7 +1361,7 @@ const handleBulkAction = async (action) => {
                   onClick={() => {
                     if (bulkAction) {
                       handleBulkAction(bulkAction);
-                      setBulkAction(''); // Reset the select after action
+                      setBulkAction('');
                     }
                   }}
                 >
