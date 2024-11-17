@@ -27,6 +27,13 @@ const DeviceRedirectSettings = () => {
     const [selectAll, setSelectAll] = useState(false);
     const [bulkAction, setBulkAction] = useState('');
     const [typeFilter, setTypeFilter] = useState('all');
+    const [addRedirectType, setAddRedirectType] = useState('page');
+    const [newRedirectUrls, setNewRedirectUrls] = useState({
+      iosUrl: '',
+      androidUrl: '',
+      backupUrl: ''
+    });
+    const [formNotification, setFormNotification] = useState(null);
 
   // Load initial data
   useEffect(() => {
@@ -185,13 +192,22 @@ const handleSlugRedirectChange = (slug, field, value) => {
 
 
   const handleAddPageRedirect = async () => {
+    // 1. First check if page is selected
     if (!selectedPage) {
         setError({ type: 'page', message: 'Please select a page' });
         return;
     }
     
+    // 2. Check if page already exists
     if (pageRedirects.some(redirect => redirect.id === selectedPage)) {
         setError({ type: 'page', message: 'This page has already been added!' });
+        return;
+    }
+
+    // 3. Then validate URLs
+    const urlErrors = validateNewUrls();
+    if (Object.keys(urlErrors).length > 0) {
+        setUrlValidationErrors(urlErrors);
         return;
     }
 
@@ -202,9 +218,9 @@ const handleSlugRedirectChange = (slug, field, value) => {
     const newRedirect = {
         id: selectedPage,
         title: pageTitle,
-        iosUrl: '',
-        androidUrl: '',
-        backupUrl: '',
+        iosUrl: newRedirectUrls.iosUrl,
+        androidUrl: newRedirectUrls.androidUrl,
+        backupUrl: newRedirectUrls.backupUrl,
         enabled: true
     };
 
@@ -247,7 +263,15 @@ const handleSlugRedirectChange = (slug, field, value) => {
             setPageRedirects(updatedPageRedirects);
             setSelectedPage('');
             setError({ type: '', message: '' });
+            setNewRedirectUrls({ iosUrl: '', androidUrl: '', backupUrl: '' });
             
+            // Add form notification
+            setFormNotification({
+                message: 'Page redirect added successfully!',
+                type: 'success'
+            });
+            
+            // Global notification
             setNotification({
                 message: 'Page redirect added successfully!',
                 type: 'success'
@@ -255,6 +279,7 @@ const handleSlugRedirectChange = (slug, field, value) => {
             
             setTimeout(() => {
                 setNotification(null);
+                setFormNotification(null);
             }, 5000);
         } else {
             throw new Error(data.data || 'Save failed');
@@ -265,6 +290,9 @@ const handleSlugRedirectChange = (slug, field, value) => {
             type: 'error'
         });
     }
+
+    // Clear the form after successful save
+    setNewRedirectUrls({ iosUrl: '', androidUrl: '', backupUrl: '' });
 };
 
   
@@ -352,25 +380,27 @@ const removeSlugRedirect = async (slug) => {
 };
   
   const handleAddSlugRedirect = async () => {
+    // 1. First check if slug is entered
     if (!newSlug) {
         setError({ type: 'slug', message: 'Please enter a custom slug' });
         return;
     }
     
-    // Clean the slug
+    // 2. Clean the slug
     const cleanSlug = newSlug
         .toLowerCase()
         .replace(/[^a-z0-9-]/g, '-')
         .replace(/-+/g, '-')
         .replace(/^-|-$/g, '');
     
+    // 3. Check if slug already exists in redirects
     if (slugRedirects.some(redirect => redirect.slug === cleanSlug)) {
         setError({ type: 'slug', message: 'This slug has already been added!' });
         return;
     }
 
     try {
-        // Validate slug first
+        // 4. Validate slug against WordPress pages/posts
         const validateResponse = await fetch(
             `${deviceRedirectData.restUrl}device-redirect/v1/validate-slug?slug=${encodeURIComponent(cleanSlug)}`,
             {
@@ -387,11 +417,18 @@ const removeSlugRedirect = async (slug) => {
             return;
         }
 
+        // 5. Only now validate URLs after we know the slug is valid
+        const urlErrors = validateNewUrls();
+        if (Object.keys(urlErrors).length > 0) {
+            setUrlValidationErrors(urlErrors);
+            return;
+        }
+
         const newRedirect = {
             slug: cleanSlug,
-            iosUrl: '',
-            androidUrl: '',
-            backupUrl: '',
+            iosUrl: newRedirectUrls.iosUrl,
+            androidUrl: newRedirectUrls.androidUrl,
+            backupUrl: newRedirectUrls.backupUrl,
             enabled: true
         };
 
@@ -433,7 +470,15 @@ const removeSlugRedirect = async (slug) => {
             setSlugRedirects(updatedSlugRedirects);
             setNewSlug('');
             setError({ type: '', message: '' });
+            setNewRedirectUrls({ iosUrl: '', androidUrl: '', backupUrl: '' });
             
+            // Add form notification
+            setFormNotification({
+                message: 'Custom URL redirect added successfully!',
+                type: 'success'
+            });
+            
+            // Global notification
             setNotification({
                 message: 'Custom URL redirect added successfully!',
                 type: 'success'
@@ -441,6 +486,7 @@ const removeSlugRedirect = async (slug) => {
             
             setTimeout(() => {
                 setNotification(null);
+                setFormNotification(null);
             }, 5000);
         } else {
             throw new Error(data.data || 'Save failed');
@@ -658,7 +704,7 @@ const handleSaveEdit = async (redirect) => {
 
   // Validate iOS URL
   if (editedValues.iosUrl && !validateUrl(editedValues.iosUrl, 'ios')) {
-    newValidationErrors[`${redirect.type}-${redirect.id}-ios`] = 'Invalid App Store URL format';
+    newValidationErrors[`${redirect.type}-${redirect.id}-ios`] = 'Invalid URL format';
     hasValidationErrors = true;
   } else {
     delete newValidationErrors[`${redirect.type}-${redirect.id}-ios`];
@@ -666,7 +712,7 @@ const handleSaveEdit = async (redirect) => {
 
   // Validate Android URL
   if (editedValues.androidUrl && !validateUrl(editedValues.androidUrl, 'android')) {
-    newValidationErrors[`${redirect.type}-${redirect.id}-android`] = 'Invalid Play Store URL format';
+    newValidationErrors[`${redirect.type}-${redirect.id}-android`] = 'Invalid URL format';
     hasValidationErrors = true;
   } else {
     delete newValidationErrors[`${redirect.type}-${redirect.id}-android`];
@@ -918,6 +964,28 @@ const handleBulkAction = async (action) => {
   }
 };
 
+// Update the validation for new redirects
+const validateNewUrls = () => {
+  const errors = {};
+  
+  // Check if at least one store URL is provided
+  if (!newRedirectUrls.iosUrl && !newRedirectUrls.androidUrl) {
+    errors.general = 'Please enter at least one URL (iOS or Android)';
+  }
+  
+  if (newRedirectUrls.iosUrl && !validateUrl(newRedirectUrls.iosUrl, 'ios')) {
+    errors.ios = 'Please enter a valid URL';
+  }
+  if (newRedirectUrls.androidUrl && !validateUrl(newRedirectUrls.androidUrl, 'android')) {
+    errors.android = 'Please enter a valid URL';
+  }
+  if (newRedirectUrls.backupUrl && !validateUrl(newRedirectUrls.backupUrl, 'backup')) {
+    errors.backup = 'Please enter a valid URL';
+  }
+  
+  return errors;
+};
+
   return (
     <div className="wrap">
       <h1>Device-Based Redirects</h1>
@@ -942,57 +1010,230 @@ const handleBulkAction = async (action) => {
           <div className="section">
             <h2>Add New Redirect</h2>
             
-            {/* Page Redirect */}
-            <div className="add-new">
-              <label>Page Redirect</label>
-              <select
-                value={selectedPage}
-                onChange={(e) => {
-                  setSelectedPage(e.target.value);
-                  // Clear any error when selection changes
-                  setError({ type: '', message: '' });
-                }}
-              >
-                <option value="">Select a page</option>
-                {deviceRedirectData.pages.map(page => (
-                  <option key={page.value} value={page.value}>{page.label}</option>
-                ))}
-              </select>
-              <button onClick={handleAddPageRedirect} className="button button-primary">
-                Add Page Redirect
-              </button>
-              {error.type === 'page' && (
-                <div className="error-message">{error.message}</div>
-              )}
-            </div>
-
-            <div className="section-divider">
-              <span>OR</span>
-            </div>
-
-            {/* Custom URL Redirect */}
-            <div className="add-new">
-              <label>Custom URL Redirect</label>
-              <div className="url-input-group">
-                <span className="url-prefix">{deviceRedirectData.homeUrl}/</span>
-                <input
-                  type="text"
-                  value={newSlug}
-                  onChange={handleSlugChange}
-                  placeholder="Enter slug"
-                  className="regular-text slug-input"
-                />
-              </div>
+            <div className="redirect-type-selector">
               <button 
-                onClick={handleAddSlugRedirect} 
-                className="button button-primary"
+                className={`redirect-type-button ${addRedirectType === 'page' ? 'active' : ''}`}
+                onClick={() => setAddRedirectType('page')}
               >
-                Add URL Redirect
+                Page Redirect
               </button>
-              {error.type === 'slug' && (
-                <div className="error-message">{error.message}</div>
-              )}
+              <button 
+                className={`redirect-type-button ${addRedirectType === 'custom' ? 'active' : ''}`}
+                onClick={() => setAddRedirectType('custom')}
+              >
+                Custom URL
+              </button>
             </div>
+
+            {formNotification && (
+              <div className={`form-notification notice notice-${formNotification.type}`}>
+                <p>{formNotification.message}</p>
+              </div>
+            )}
+
+            {addRedirectType === 'page' ? (
+              <div className="add-new">
+                <select
+                  value={selectedPage}
+                  onChange={(e) => {
+                    setSelectedPage(e.target.value);
+                    setError({ type: '', message: '' });
+                  }}
+                >
+                  <option value="">Select a page</option>
+                  {deviceRedirectData.pages.map(page => (
+                    <option key={page.value} value={page.value}>{page.label}</option>
+                  ))}
+                </select>
+                
+                <div className="url-fields-container">
+                  <div className="url-field">
+                    <label>iOS URL:</label>
+                    <div className="url-input-container">
+                      <input
+                        type="url"
+                        value={newRedirectUrls.iosUrl}
+                        onChange={(e) => {
+                          setNewRedirectUrls(prev => ({ ...prev, iosUrl: e.target.value }));
+                          setUrlValidationErrors(prev => {
+                            const newErrors = { ...prev };
+                            delete newErrors.ios;
+                            delete newErrors.general;
+                            return newErrors;
+                          });
+                        }}
+                        placeholder="https://apps.apple.com/..."
+                        className={`regular-text ${urlValidationErrors.ios ? 'error' : ''}`}
+                      />
+                      {urlValidationErrors.ios && (
+                        <div className="url-validation-error">{urlValidationErrors.ios}</div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="url-field">
+                    <label>Android URL:</label>
+                    <div className="url-input-container">
+                      <input
+                        type="url"
+                        value={newRedirectUrls.androidUrl}
+                        onChange={(e) => {
+                          setNewRedirectUrls(prev => ({ ...prev, androidUrl: e.target.value }));
+                          setUrlValidationErrors(prev => {
+                            const newErrors = { ...prev };
+                            delete newErrors.android;
+                            delete newErrors.general;
+                            return newErrors;
+                          });
+                        }}
+                        placeholder="https://play.google.com/..."
+                        className={`regular-text ${urlValidationErrors.android ? 'error' : ''}`}
+                      />
+                      {urlValidationErrors.android && (
+                        <div className="url-validation-error">{urlValidationErrors.android}</div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="url-field">
+                    <label>Other Devices URL:</label>
+                    <div className="url-input-container">
+                      <input
+                        type="url"
+                        value={newRedirectUrls.backupUrl}
+                        onChange={(e) => {
+                          setNewRedirectUrls(prev => ({ ...prev, backupUrl: e.target.value }));
+                          setUrlValidationErrors(prev => {
+                            const newErrors = { ...prev };
+                            delete newErrors.backup;
+                            return newErrors;
+                          });
+                        }}
+                        placeholder="https://..."
+                        className={`regular-text ${urlValidationErrors.backup ? 'error' : ''}`}
+                      />
+                      {urlValidationErrors.backup && (
+                        <div className="url-validation-error">{urlValidationErrors.backup}</div>
+                      )}
+                    </div>
+                  </div>
+                  {urlValidationErrors.general && (
+                    <div className="error-message">{urlValidationErrors.general}</div>
+                  )}
+                </div>
+
+                <button onClick={handleAddPageRedirect} className="button button-primary">
+                  Add Page Redirect
+                </button>
+                {error.type === 'page' && (
+                  <div className="error-message">{error.message}</div>
+                )}
+              </div>
+            ) : (
+              <div className="add-new">
+                <div className="slug-input-section">
+                  <label>Custom URL Slug</label>
+                  <input
+                    type="text"
+                    value={newSlug}
+                    onChange={handleSlugChange}
+                    placeholder="Enter slug"
+                    className="regular-text"
+                  />
+                  {newSlug && (
+                    <div className="slug-preview">
+                      {deviceRedirectData.homeUrl}/{newSlug}
+                    </div>
+                  )}
+                </div>
+                {error.type === 'slug' && (
+                  <div className="error-message">{error.message}</div>
+                )}
+                
+                <div className="url-fields-container">
+                  <div className="url-field">
+                    <label>iOS URL:</label>
+                    <div className="url-input-container">
+                      <input
+                        type="url"
+                        value={newRedirectUrls.iosUrl}
+                        onChange={(e) => {
+                          setNewRedirectUrls(prev => ({ ...prev, iosUrl: e.target.value }));
+                          setUrlValidationErrors(prev => {
+                            const newErrors = { ...prev };
+                            delete newErrors.ios;
+                            delete newErrors.general;
+                            return newErrors;
+                          });
+                        }}
+                        placeholder="https://apps.apple.com/..."
+                        className={`regular-text ${urlValidationErrors.ios ? 'error' : ''}`}
+                      />
+                      {urlValidationErrors.ios && (
+                        <div className="url-validation-error">{urlValidationErrors.ios}</div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="url-field">
+                    <label>Android URL:</label>
+                    <div className="url-input-container">
+                      <input
+                        type="url"
+                        value={newRedirectUrls.androidUrl}
+                        onChange={(e) => {
+                          setNewRedirectUrls(prev => ({ ...prev, androidUrl: e.target.value }));
+                          setUrlValidationErrors(prev => {
+                            const newErrors = { ...prev };
+                            delete newErrors.android;
+                            delete newErrors.general;
+                            return newErrors;
+                          });
+                        }}
+                        placeholder="https://play.google.com/..."
+                        className={`regular-text ${urlValidationErrors.android ? 'error' : ''}`}
+                      />
+                      {urlValidationErrors.android && (
+                        <div className="url-validation-error">{urlValidationErrors.android}</div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="url-field">
+                    <label>Other Devices URL:</label>
+                    <div className="url-input-container">
+                      <input
+                        type="url"
+                        value={newRedirectUrls.backupUrl}
+                        onChange={(e) => {
+                          setNewRedirectUrls(prev => ({ ...prev, backupUrl: e.target.value }));
+                          setUrlValidationErrors(prev => {
+                            const newErrors = { ...prev };
+                            delete newErrors.backup;
+                            return newErrors;
+                          });
+                        }}
+                        placeholder="https://..."
+                        className={`regular-text ${urlValidationErrors.backup ? 'error' : ''}`}
+                      />
+                      {urlValidationErrors.backup && (
+                        <div className="url-validation-error">{urlValidationErrors.backup}</div>
+                      )}
+                    </div>
+                  </div>
+                  {urlValidationErrors.general && (
+                    <div className="error-message">{urlValidationErrors.general}</div>
+                  )}
+                </div>
+
+                <button 
+                  onClick={handleAddSlugRedirect} 
+                  className="button button-primary"
+                >
+                  Add URL Redirect
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Coffee Section */}

@@ -4,7 +4,7 @@
     margin-bottom: 60px;
     padding-right: 20px;
     display: flex;
-    gap: 20px;
+    gap: 25px;
 }
 
 .sidebar-section {
@@ -18,9 +18,9 @@
 }
 
 .section {
-    margin-bottom: 20px;
+    margin-bottom: 25px;
     background: #fff;
-    padding: 20px;
+    padding: 25px;
     border: 1px solid #ccd0d4;
     box-shadow: 0 1px 1px rgba(0,0,0,.04);
     box-sizing: border-box;
@@ -33,17 +33,17 @@
 }
 
 .add-new {
+    margin-top: 20px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    margin-bottom: 20px;
+    gap: 20px;
 }
 
-.add-new label {
+.add-new > label {
     font-weight: 500;
     color: #23282d;
     font-size: 14px;
-    margin-bottom: -4px;
+    margin-bottom: -12px;
 }
 
 .add-new select,
@@ -53,8 +53,8 @@
 }
 
 .error-message {
+    margin: 5px 0;
     color: #d63638;
-    margin: 0;
     padding: 8px;
     background-color: #fcf0f1;
     border-left: 4px solid #d63638;
@@ -142,7 +142,7 @@
 }
 
 .wp-list-table td {
-    padding-bottom: 24px !important;
+    padding: 20px 15px !important;
     vertical-align: top !important;
 }
 
@@ -336,13 +336,42 @@
 }
 
 .url-input-group {
-    width: 100%;
-    max-width: none;
+    display: flex;
+    align-items: center;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #fff;
+}
+
+.url-input-group .url-prefix {
+    padding: 0 8px;
+    color: #50575e;
+    background: #f0f0f1;
+    border-right: 1px solid #8c8f94;
+    line-height: 2.3;
+    white-space: nowrap;
+    font-family: monospace;
+    font-size: 13px;
+}
+
+.url-input-group .slug-input {
+    border: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    flex: 1;
+    padding: 6px 8px;
+    min-height: 36px;
 }
 
 .url-input-group:focus-within {
     border-color: #2271b1;
     box-shadow: 0 0 0 1px #2271b1;
+}
+
+/* Remove the old combined styles */
+.url-input-combined {
+    display: none;
 }
 
 .url-prefix {
@@ -387,8 +416,7 @@
     display: flex;
     flex-direction: column;
     gap: 15px;
-    width: 100%;
-    max-width: none;
+    margin: 5px 0;
 }
 
 .url-field {
@@ -439,14 +467,14 @@
 .url-display-container {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 15px;
     width: 100%;
 }
 
 .url-display {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
 }
 
 .url-display label {
@@ -749,27 +777,7 @@
 
 /* Add divider styles */
 .section-divider {
-    position: relative;
-    text-align: center;
-    margin: 20px 0;
-}
-
-.section-divider::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: #dcdcde;
-}
-
-.section-divider span {
-    position: relative;
-    background: #fff;
-    padding: 0 10px;
-    color: #646970;
-    font-size: 13px;
+    display: none;
 }
 
 /* Ensure buttons have consistent width */
@@ -970,4 +978,239 @@
 
 .url-value:hover {
     background: #e5e5e5;
+}
+
+.redirect-type-selector {
+    display: flex;
+    gap: 0;
+    margin: 20px 0;
+    border: 1px solid #ccd0d4;
+    border-radius: 4px;
+    padding: 3px;
+    background: #f0f0f1;
+}
+
+.redirect-type-button {
+    flex: 1;
+    padding: 8px 12px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 13px;
+    border-radius: 2px;
+    color: #50575e;
+    transition: all 0.2s ease;
+}
+
+.redirect-type-button:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.redirect-type-button.active {
+    background: #fff;
+    color: #2271b1;
+    font-weight: 500;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Update spacing in add-new section */
+.add-new {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.url-input-group {
+    display: flex;
+    align-items: center;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+/* Update spacing in URL fields container */
+.url-fields-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin: 5px 0;
+}
+
+/* Update spacing in redirect type selector */
+.redirect-type-selector {
+    margin: 20px 0;
+}
+
+/* Update section spacing */
+.section {
+    margin-bottom: 25px;
+    padding: 25px;
+}
+
+/* Update spacing between sidebar and main content */
+.device-redirect-container {
+    gap: 25px;
+}
+
+/* Update table cell spacing */
+.wp-list-table td {
+    padding: 20px 15px !important;
+}
+
+/* Update URL display spacing */
+.url-display-container {
+    gap: 15px;
+}
+
+.url-display {
+    gap: 6px;
+}
+
+/* Update mobile spacing */
+@media screen and (max-width: 782px) {
+    .section {
+        padding: 20px;
+    }
+    
+    .add-new {
+        gap: 15px;
+    }
+    
+    .url-fields-container {
+        gap: 12px;
+    }
+}
+
+/* Update spacing between sections in sidebar */
+.sidebar-section > * + * {
+    margin-top: 25px;
+}
+
+.custom-url-input {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.custom-url-input label {
+    font-weight: 500;
+    color: #23282d;
+    font-size: 14px;
+}
+
+.url-input-combined {
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+    background: #fff;
+    padding: 8px;
+    overflow: hidden;
+}
+
+.url-input-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0;
+    width: 100%;
+    min-height: 36px;
+}
+
+.url-input-wrapper .url-prefix {
+    color: #50575e;
+    background: #f0f0f1;
+    padding: 4px 8px;
+    font-family: monospace;
+    font-size: 13px;
+    line-height: 1.4;
+    border-radius: 3px 0 0 3px;
+    white-space: normal;
+    word-break: break-all;
+}
+
+.url-input-wrapper .slug-input {
+    flex: 1;
+    min-width: 100px;
+    border: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 4px 8px;
+    font-size: 13px;
+    font-family: monospace;
+    background: transparent;
+}
+
+.url-input-combined:focus-within {
+    border-color: #2271b1;
+    box-shadow: 0 0 0 1px #2271b1;
+}
+
+.url-input-wrapper .slug-input:focus {
+    outline: none;
+}
+
+/* Remove old styles */
+.url-preview {
+    display: none;
+}
+
+.slug-input-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.slug-input-section label {
+    font-weight: 500;
+    color: #23282d;
+    font-size: 14px;
+}
+
+.slug-input-section input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+}
+
+.slug-input-section input:focus {
+    border-color: #2271b1;
+    box-shadow: 0 0 0 1px #2271b1;
+    outline: none;
+}
+
+.slug-preview {
+    color: #50575e;
+    font-family: monospace;
+    font-size: 13px;
+    padding: 8px;
+    background: #f0f0f1;
+    border-radius: 4px;
+    word-break: break-all;
+}
+
+/* Remove old styles */
+.url-input-combined,
+.url-input-wrapper,
+.url-input-group {
+    display: none;
+}
+
+.form-notification {
+    margin: 15px 0;
+    padding: 8px 12px;
+    border-radius: 4px;
+    border-left-width: 4px;
+}
+
+.form-notification.notice-success {
+    background-color: #f0f6e8;
+    border-left-color: #46b450;
+}
+
+.form-notification p {
+    margin: 0;
+    padding: 0;
+    color: #2c3338;
+    font-size: 13px;
 }
