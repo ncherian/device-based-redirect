@@ -447,6 +447,23 @@ const StickySaveBar = ({ onSave, saving, hasUnsavedChanges }) => {
   );
 };
 
+const getAllRedirects = () => {
+  const pageRedirectsWithType = pageRedirects.map(redirect => ({
+    ...redirect,
+    type: 'page',
+    displayUrl: redirect.title
+  }));
+  
+  const slugRedirectsWithType = slugRedirects.map(redirect => ({
+    ...redirect,
+    type: 'custom',
+    displayUrl: `${deviceRedirectData.homeUrl}/${redirect.slug}`,
+    id: redirect.slug // normalize the id field
+  }));
+  
+  return [...pageRedirectsWithType, ...slugRedirectsWithType];
+};
+
   return (
     <div className="wrap">
       <h1>Device-Based Redirection Settings</h1>
@@ -477,8 +494,9 @@ const StickySaveBar = ({ onSave, saving, hasUnsavedChanges }) => {
 
         {/* Page Redirects Section */}
         <div className="section">
-          <h2>Page Redirects</h2>
+          <h2>Redirects</h2>
           
+          {/* Add New Page Redirect */}
           <div className="add-new">
             <select
               value={selectedPage}
@@ -493,116 +511,12 @@ const StickySaveBar = ({ onSave, saving, hasUnsavedChanges }) => {
               Add Page Redirect
             </button>
           </div>
-          
-          {error.type === 'page' && (
-            <div className="error-message">{error.message}</div>
-          )}
 
-            <table className="wp-list-table widefat fixed striped">
-            <thead>
-                <tr>
-                <th>Page</th>
-                <th>URLs</th>
-                <th>Enabled</th>
-                <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {pageRedirects.map(redirect => (
-                <tr key={redirect.id}>
-                    <td>{redirect.title}</td>
-                    <td>
-                      <div className="url-fields-container">
-                        <div className="url-field">
-                          <label>iOS URL:</label>
-                          <div className="url-input-container">
-                            <input
-                              type="url"
-                              value={redirect.iosUrl}
-                              onChange={(e) => handleUrlChange('page', redirect.id, 'ios', e.target.value)}
-                              placeholder="https://apps.apple.com/..."
-                              className={`regular-text ${urlValidationErrors[`page-${redirect.id}-ios`] ? 'error' : ''}`}
-                            />
-                            {urlValidationErrors[`page-${redirect.id}-ios`] && (
-                              <div className="url-validation-error">
-                                {urlValidationErrors[`page-${redirect.id}-ios`]}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <div className="url-field">
-                          <label>Android URL:</label>
-                          <div className="url-input-container">
-                            <input
-                              type="url"
-                              value={redirect.androidUrl}
-                              onChange={(e) => handleUrlChange('page', redirect.id, 'android', e.target.value)}
-                              placeholder="https://play.google.com/..."
-                              className={`regular-text ${urlValidationErrors[`page-${redirect.id}-android`] ? 'error' : ''}`}
-                            />
-                            {urlValidationErrors[`page-${redirect.id}-android`] && (
-                              <div className="url-validation-error">
-                                {urlValidationErrors[`page-${redirect.id}-android`]}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="url-field">
-                          <label>Other Devices URL:</label>
-                          <div className="url-input-container">
-                            <input
-                              type="url"
-                              value={redirect.backupUrl}
-                              onChange={(e) => handleUrlChange('page', redirect.id, 'backup', e.target.value)}
-                              placeholder="https://..."
-                              className={`regular-text ${urlValidationErrors[`page-${redirect.id}-backup`] ? 'error' : ''}`}
-                            />
-                            {urlValidationErrors[`page-${redirect.id}-backup`] && (
-                              <div className="url-validation-error">
-                                {urlValidationErrors[`page-${redirect.id}-backup`]}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                    <ToggleSwitch
-                        enabled={redirect.enabled}
-                        onChange={(checked) => {
-                        const updated = pageRedirects.map(r =>
-                            r.id === redirect.id ? { ...r, enabled: checked } : r
-                        );
-                        setPageRedirects(updated);
-                        setHasUnsavedChanges(true);
-                        }}
-                        small={true}
-                    />
-                    </td>
-                    <td>
-                    <button
-                        onClick={() => removePageRedirect(redirect.id)}
-                        className="button button-secondary"
-                    >
-                        Remove
-                    </button>
-                    </td>
-                </tr>
-                ))}
-            </tbody>
-            </table>
-        </div>
-
-        {/* Slug Redirects Section */}
-        <div className="section">
-        <h2>Custom URL Redirects</h2>
-        
-        <div className="add-new">
-        <div className="url-input-group">
-            <span className="url-prefix">{deviceRedirectData.homeUrl}/</span>
-            <input
+          {/* Add New Custom URL Redirect */}
+          <div className="add-new">
+            <div className="url-input-group">
+              <span className="url-prefix">{deviceRedirectData.homeUrl}/</span>
+              <input
                 type="text"
                 value={newSlug}
                 onChange={handleSlugChange}
@@ -611,112 +525,131 @@ const StickySaveBar = ({ onSave, saving, hasUnsavedChanges }) => {
               />
             </div>
             <button 
-                onClick={handleAddSlugRedirect} 
-                className="button button-primary"
+              onClick={handleAddSlugRedirect} 
+              className="button button-primary"
             >
-                Add URL Redirect
+              Add URL Redirect
             </button>
-        </div>
-        
-        {error.type === 'slug' && (
+          </div>
+          
+          {error.type === 'page' && (
             <div className="error-message">{error.message}</div>
-        )}
+          )}
+          {error.type === 'slug' && (
+            <div className="error-message">{error.message}</div>
+          )}
 
-        <table className="wp-list-table widefat fixed striped">
+          <table className="wp-list-table widefat fixed striped">
             <thead>
-            <tr>
-                <th>Custom Redirect URL</th>
+              <tr>
+                <th>Type</th>
+                <th>URL/Page</th>
                 <th>URLs</th>
                 <th>Enabled</th>
                 <th>Actions</th>
-            </tr>
+              </tr>
             </thead>
             <tbody>
-            {slugRedirects.map(redirect => (
-                <tr key={redirect.slug}>
-                <td>{deviceRedirectData.homeUrl}/{redirect.slug}</td>
-                <td>
-                  <div className="url-fields-container">
-                    <div className="url-field">
-                      <label>iOS URL:</label>
-                      <div className="url-input-container">
-                        <input
-                          type="url"
-                          value={redirect.iosUrl}
-                          onChange={(e) => handleUrlChange('slug', redirect.slug, 'ios', e.target.value)}
-                          placeholder="https://apps.apple.com/..."
-                          className={`regular-text ${urlValidationErrors[`slug-${redirect.slug}-ios`] ? 'error' : ''}`}
-                        />
-                        {urlValidationErrors[`slug-${redirect.slug}-ios`] && (
-                          <div className="url-validation-error">
-                            {urlValidationErrors[`slug-${redirect.slug}-ios`]}
-                          </div>
-                        )}
+              {getAllRedirects().map(redirect => (
+                <tr key={redirect.id}>
+                  <td>
+                    <span className={`redirect-type ${redirect.type}`}>
+                      {redirect.type === 'page' ? 'Page Redirect' : 'Custom URL'}
+                    </span>
+                  </td>
+                  <td>{redirect.displayUrl}</td>
+                  <td>
+                    <div className="url-fields-container">
+                      <div className="url-field">
+                        <label>iOS URL:</label>
+                        <div className="url-input-container">
+                          <input
+                            type="url"
+                            value={redirect.iosUrl}
+                            onChange={(e) => handleUrlChange(redirect.type, redirect.id, 'ios', e.target.value)}
+                            placeholder="https://apps.apple.com/..."
+                            className={`regular-text ${urlValidationErrors[`${redirect.type}-${redirect.id}-ios`] ? 'error' : ''}`}
+                          />
+                          {urlValidationErrors[`${redirect.type}-${redirect.id}-ios`] && (
+                            <div className="url-validation-error">
+                              {urlValidationErrors[`${redirect.type}-${redirect.id}-ios`]}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    
-                    <div className="url-field">
-                      <label>Android URL:</label>
-                      <div className="url-input-container">
-                        <input
-                          type="url"
-                          value={redirect.androidUrl}
-                          onChange={(e) => handleUrlChange('slug', redirect.slug, 'android', e.target.value)}
-                          placeholder="https://play.google.com/..."
-                          className={`regular-text ${urlValidationErrors[`slug-${redirect.slug}-android`] ? 'error' : ''}`}
-                        />
-                        {urlValidationErrors[`slug-${redirect.slug}-android`] && (
-                          <div className="url-validation-error">
-                            {urlValidationErrors[`slug-${redirect.slug}-android`]}
-                          </div>
-                        )}
+                      
+                      <div className="url-field">
+                        <label>Android URL:</label>
+                        <div className="url-input-container">
+                          <input
+                            type="url"
+                            value={redirect.androidUrl}
+                            onChange={(e) => handleUrlChange(redirect.type, redirect.id, 'android', e.target.value)}
+                            placeholder="https://play.google.com/..."
+                            className={`regular-text ${urlValidationErrors[`${redirect.type}-${redirect.id}-android`] ? 'error' : ''}`}
+                          />
+                          {urlValidationErrors[`${redirect.type}-${redirect.id}-android`] && (
+                            <div className="url-validation-error">
+                              {urlValidationErrors[`${redirect.type}-${redirect.id}-android`]}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="url-field">
-                      <label>Other Devices URL:</label>
-                      <div className="url-input-container">
-                        <input
-                          type="url"
-                          value={redirect.backupUrl}
-                          onChange={(e) => handleUrlChange('slug', redirect.slug, 'backup', e.target.value)}
-                          placeholder="https://..."
-                          className={`regular-text ${urlValidationErrors[`slug-${redirect.slug}-backup`] ? 'error' : ''}`}
-                        />
-                        {urlValidationErrors[`slug-${redirect.slug}-backup`] && (
-                          <div className="url-validation-error">
-                            {urlValidationErrors[`slug-${redirect.slug}-backup`]}
-                          </div>
-                        )}
+                      <div className="url-field">
+                        <label>Other Devices URL:</label>
+                        <div className="url-input-container">
+                          <input
+                            type="url"
+                            value={redirect.backupUrl}
+                            onChange={(e) => handleUrlChange(redirect.type, redirect.id, 'backup', e.target.value)}
+                            placeholder="https://..."
+                            className={`regular-text ${urlValidationErrors[`${redirect.type}-${redirect.id}-backup`] ? 'error' : ''}`}
+                          />
+                          {urlValidationErrors[`${redirect.type}-${redirect.id}-backup`] && (
+                            <div className="url-validation-error">
+                              {urlValidationErrors[`${redirect.type}-${redirect.id}-backup`]}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </td>
-                <td>
+                  </td>
+                  <td>
                     <ToggleSwitch
-                        enabled={redirect.enabled}
-                        onChange={(checked) => {
-                        const updated = slugRedirects.map(r =>
-                            r.slug === redirect.slug ? { ...r, enabled: checked } : r
-                        );
-                        setSlugRedirects(updated);
+                      enabled={redirect.enabled}
+                      onChange={(checked) => {
+                        if (redirect.type === 'page') {
+                          const updated = pageRedirects.map(r =>
+                            r.id === redirect.id ? { ...r, enabled: checked } : r
+                          );
+                          setPageRedirects(updated);
+                        } else {
+                          const updated = slugRedirects.map(r =>
+                            r.slug === redirect.id ? { ...r, enabled: checked } : r
+                          );
+                          setSlugRedirects(updated);
+                        }
                         setHasUnsavedChanges(true);
-                        }}
-                        small={true}
+                      }}
+                      small={true}
                     />
-                </td>
-                <td>
+                  </td>
+                  <td>
                     <button
-                    onClick={() => removeSlugRedirect(redirect.slug)}
-                    className="button button-secondary"
+                      onClick={() => redirect.type === 'page' ? 
+                        removePageRedirect(redirect.id) : 
+                        removeSlugRedirect(redirect.id)
+                      }
+                      className="button button-secondary"
                     >
-                    Remove
+                      Remove
                     </button>
-                </td>
+                  </td>
                 </tr>
-            ))}
+              ))}
             </tbody>
-        </table>
+          </table>
         </div>
 
         <div className="submit-section">

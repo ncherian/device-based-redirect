@@ -474,3 +474,31 @@
 .wp-list-table th {
   padding: 10px 15px !important;
 }
+
+/* Add these new styles */
+.redirect-type {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.redirect-type.page {
+  background-color: #e9f5e9;
+  color: #1b8b1b;
+  border: 1px solid #98d598;
+}
+
+.redirect-type.custom {
+  background-color: #f0f6fc;
+  color: #0073aa;
+  border: 1px solid #99cff0;
+}
+
+/* Add spacing between the add-new sections */
+.add-new + .add-new {
+  margin-top: 10px;
+}
