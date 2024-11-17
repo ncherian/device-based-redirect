@@ -272,6 +272,7 @@ function dbre_redirect_logic() {
                 // Sanitize URLs
                 $ios_url = !empty($settings['ios_url']) ? esc_url($settings['ios_url']) : '';
                 $android_url = !empty($settings['android_url']) ? esc_url($settings['android_url']) : '';
+                $backup_url = !empty($settings['backup_url']) ? esc_url($settings['backup_url']) : '';
 
                 // Only proceed if we have URLs to redirect to
                 if (!empty($ios_url) || !empty($android_url)) {
@@ -291,6 +292,7 @@ function dbre_redirect_logic() {
                         array(
                             'ios' => esc_js($ios_url),
                             'android' => esc_js($android_url),
+                            'backup' => esc_js($backup_url),
                             'current' => esc_js($current_url)
                         )
                     );

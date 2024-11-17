@@ -66,6 +66,7 @@ useEffect(() => {
                     title: deviceRedirectData.pages.find(p => p.value.toString() === key)?.label || '',
                     iosUrl: value.ios_url || '',
                     androidUrl: value.android_url || '',
+                    backupUrl: value.backup_url || '',
                     enabled: Boolean(value.enabled)
                 });
             } else {
@@ -194,6 +195,7 @@ const handleSlugRedirectChange = (slug, field, value) => {
             title: pageTitle,
             iosUrl: '',
             androidUrl: '',
+            backupUrl: '',
             enabled: true
         }
     ]);
@@ -304,7 +306,7 @@ const removeSlugRedirect = (slug) => {
   //   setSlugRedirects(updated);
   // };
   
- // Update the handleUrlChange function to handle backup URL validation
+ // Update the handleUrlChange function
  const handleUrlChange = (redirectType, id, type, value) => {
   const isValid = validateUrl(value, type);
   const errorKey = `${redirectType}-${id}-${type}`;
@@ -323,7 +325,13 @@ const removeSlugRedirect = (slug) => {
   }
 
   if (redirectType === 'page') {
-      handlePageRedirectChange(id, type === 'ios' ? 'iosUrl' : 'androidUrl', value);
+      handlePageRedirectChange(
+          id, 
+          type === 'ios' ? 'iosUrl' : 
+          type === 'android' ? 'androidUrl' : 
+          'backupUrl',
+          value
+      );
   } else {
       handleSlugRedirectChange(
           id, 
@@ -358,6 +366,7 @@ const getUrlErrorMessage = (type) => {
         settings[redirect.id] = {
             ios_url: redirect.iosUrl,
             android_url: redirect.androidUrl,
+            backup_url: redirect.backupUrl,
             enabled: redirect.enabled
         };
     });
@@ -535,6 +544,24 @@ const StickySaveBar = ({ onSave, saving, hasUnsavedChanges }) => {
                             {urlValidationErrors[`page-${redirect.id}-android`] && (
                               <div className="url-validation-error">
                                 {urlValidationErrors[`page-${redirect.id}-android`]}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="url-field">
+                          <label>Other Devices URL:</label>
+                          <div className="url-input-container">
+                            <input
+                              type="url"
+                              value={redirect.backupUrl}
+                              onChange={(e) => handleUrlChange('page', redirect.id, 'backup', e.target.value)}
+                              placeholder="https://..."
+                              className={`regular-text ${urlValidationErrors[`page-${redirect.id}-backup`] ? 'error' : ''}`}
+                            />
+                            {urlValidationErrors[`page-${redirect.id}-backup`] && (
+                              <div className="url-validation-error">
+                                {urlValidationErrors[`page-${redirect.id}-backup`]}
                               </div>
                             )}
                           </div>
