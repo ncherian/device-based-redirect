@@ -162,14 +162,6 @@
     border-color: #FF5F5F;
   }
   
-  .global-settings {
-    margin-bottom: 20px;
-    padding: 15px;
-    background: #fff;
-    border: 1px solid #ccd0d4;
-    box-shadow: 0 1px 1px rgba(0,0,0,.04);
-  }
-  
   /* Responsive adjustments */
   @media (max-width: 782px) {
     .add-new {
@@ -327,123 +319,6 @@
     opacity: 1;
   }
 
-  .global-settings-section {
-    background: #fff;
-    border: 1px solid #ccd0d4;
-    box-shadow: 0 1px 1px rgba(0,0,0,.04);
-    margin-bottom: 20px;
-  }
-  
-  .global-settings-header {
-    padding: 12px 15px;
-    border-bottom: 1px solid #ccd0d4;
-    background: #f8f9fa;
-  }
-  
-  .global-settings-header h2 {
-    margin: 0;
-    font-size: 14px;
-    line-height: 1.4;
-    font-weight: 600;
-  }
-  
-  .global-settings-content {
-    padding: 15px;
-  }
-  
-  .global-toggle-container {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    padding: 10px 0;
-  }
-  
-  .toggle-label {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  
-  .toggle-title {
-    font-size: 14px;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  
-  .info-button {
-    background: none;
-    border: none;
-    padding: 0;
-    cursor: pointer;
-    color: #787c82;
-    display: flex;
-    align-items: center;
-  }
-  
-  .info-button:hover {
-    color: #2271b1;
-  }
-  
-  .toggle-status {
-    font-size: 12px;
-    font-weight: normal;
-  }
-  
-  .status-enabled {
-    color: #46b450;
-  }
-  
-  .status-disabled {
-    color: #dc3232;
-  }
-  
-  .settings-info {
-    margin-top: 15px;
-    padding: 15px;
-    background: #f0f6fc;
-    border-left: 4px solid #2271b1;
-    margin-left: 45px;
-  }
-  
-  .info-content h4 {
-    margin: 0 0 10px 0;
-    font-size: 13px;
-  }
-  
-  .info-content ul {
-    margin: 0;
-    padding-left: 20px;
-    font-size: 13px;
-    line-height: 1.5;
-    color: #505660;
-  }
-  
-  .info-content li {
-    margin-bottom: 5px;
-  }
-  
-  .global-warning {
-    margin-top: 15px;
-    padding: 12px 15px;
-    background: #fcf9e8;
-    border-left: 4px solid #dba617;
-    margin-left: 45px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  
-  .warning-icon {
-    color: #dba617;
-  }
-  
-  .warning-message {
-    font-size: 13px;
-    color: #505660;
-  }
-  
   .sticky-save-bar {
     position: fixed;
     bottom: 0;

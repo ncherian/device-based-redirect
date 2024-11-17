@@ -13,7 +13,6 @@ const ToggleSwitch = ({ enabled, onChange, small = false }) => (
 );
 
 const DeviceRedirectSettings = () => {
-    const [globalEnabled, setGlobalEnabled] = useState(deviceRedirectData.globalEnabled);
     const [pageRedirects, setPageRedirects] = useState([]);
     const [slugRedirects, setSlugRedirects] = useState([]);
     const [selectedPage, setSelectedPage] = useState('');
@@ -24,7 +23,6 @@ const DeviceRedirectSettings = () => {
     const [urlValidationErrors, setUrlValidationErrors] = useState({});
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [initialData, setInitialData] = useState({
-      globalEnabled: false,
       pageRedirects: [],
       slugRedirects: []
     });
@@ -47,12 +45,11 @@ const DeviceRedirectSettings = () => {
 // To detect changes
 useEffect(() => {
   const hasChanges = 
-    initialData.globalEnabled !== globalEnabled ||
     JSON.stringify(initialData.pageRedirects) !== JSON.stringify(pageRedirects) ||
     JSON.stringify(initialData.slugRedirects) !== JSON.stringify(slugRedirects);
   
   setHasUnsavedChanges(hasChanges);
-}, [globalEnabled, pageRedirects, slugRedirects, initialData]);
+}, [pageRedirects, slugRedirects, initialData]);
 
 
   // Load initial data
@@ -85,11 +82,9 @@ useEffect(() => {
         // Set both current and initial state
         setPageRedirects(pages);
         setSlugRedirects(slugs);
-        setGlobalEnabled(Boolean(deviceRedirectData.globalEnabled));
         
         // Set initial data for change tracking
         setInitialData({
-          globalEnabled: Boolean(deviceRedirectData.globalEnabled),
           pageRedirects: [...pages],
           slugRedirects: [...slugs]
         });
@@ -103,7 +98,6 @@ useEffect(() => {
   useEffect(() => {
     const detectChanges = () => {
         const hasChanges = 
-            initialData.globalEnabled !== globalEnabled ||
             JSON.stringify(initialData.pageRedirects) !== JSON.stringify(pageRedirects) ||
             JSON.stringify(initialData.slugRedirects) !== JSON.stringify(slugRedirects);
         
@@ -114,23 +108,17 @@ useEffect(() => {
     if (initialData.pageRedirects.length > 0 || initialData.slugRedirects.length > 0) {
         detectChanges();
     }
-}, [globalEnabled, pageRedirects, slugRedirects, initialData]);
+}, [pageRedirects, slugRedirects, initialData]);
 
   const debugSavedData = () => {
     console.group('Device Redirect Debug Info');
     console.log('Loaded Settings:', deviceRedirectData.settings);
     console.log('Current Page Redirects:', pageRedirects);
     console.log('Current Slug Redirects:', slugRedirects);
-    console.log('Global Enabled:', globalEnabled);
     console.groupEnd();
   };
 
-  const handleGlobalEnabledChange = (checked) => {
-    setGlobalEnabled(checked);
-    setHasUnsavedChanges(true);
-};
-
-const handlePageRedirectChange = (id, field, value) => {
+  const handlePageRedirectChange = (id, field, value) => {
     const updated = pageRedirects.map(r =>
         r.id === id ? { ...r, [field]: value } : r
     );
@@ -388,7 +376,6 @@ const getUrlErrorMessage = (type) => {
         formData.append('action', 'save_device_redirect_settings');
         formData.append('nonce', deviceRedirectData.nonce);
         formData.append('settings', JSON.stringify(settings));
-        formData.append('globalEnabled', globalEnabled);
         
         const response = await fetch(deviceRedirectData.ajaxUrl, {
             method: 'POST',
@@ -400,7 +387,6 @@ const getUrlErrorMessage = (type) => {
         if (data.success) {
             // Update the initial data to match current state
             setInitialData({
-                globalEnabled,
                 pageRedirects: [...pageRedirects],
                 slugRedirects: [...slugRedirects]
             });
@@ -452,67 +438,6 @@ const StickySaveBar = ({ onSave, saving, hasUnsavedChanges }) => {
   );
 };
 
-const GlobalSettings = () => {
-    const [showInfo, setShowInfo] = useState(false);
-  
-    return (
-      <div className="global-settings-section">
-        <div className="global-settings-header">
-          <h2>Global Settings</h2>
-        </div>
-        
-        <div className="global-settings-content">
-          <div className="global-toggle-container">
-            <ToggleSwitch
-              enabled={globalEnabled}
-              onChange={handleGlobalEnabledChange}
-            />
-            
-            <div className="toggle-label">
-              <span className="toggle-title">
-                Enable Device-Based Redirects
-                <button 
-                  className="info-button"
-                  onClick={() => setShowInfo(!showInfo)}
-                  aria-label="Toggle information"
-                >
-                  <span className="dashicons dashicons-info"></span>
-                </button>
-              </span>
-              <span className={`toggle-status ${globalEnabled ? 'status-enabled' : 'status-disabled'}`}>
-                {globalEnabled ? 'Enabled' : 'Disabled'}
-              </span>
-            </div>
-          </div>
-  
-          {showInfo && (
-            <div className="settings-info">
-              <div className="info-content">
-                <h4>How it works:</h4>
-                <ul>
-                  <li>When enabled, the plugin will check visitor's device type and redirect accordingly.</li>
-                  <li>Disable this to temporarily turn off all redirects without losing your settings.</li>
-                  <li>Individual redirects can still be enabled/disabled separately below.</li>
-                </ul>
-              </div>
-            </div>
-          )}
-  
-          {!globalEnabled && (
-            <div className="global-warning">
-              <div className="warning-icon">
-                <span className="dashicons dashicons-warning"></span>
-              </div>
-              <div className="warning-message">
-                All redirects are currently disabled. Enable this setting to activate your configured redirects.
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="wrap">
       <h1>Device-Based Redirection Settings</h1>
@@ -540,8 +465,6 @@ const GlobalSettings = () => {
     )}
       
       <div className="device-redirect-container">
-      <GlobalSettings />
-
 
         {/* Page Redirects Section */}
         <div className="section">

@@ -23,10 +23,7 @@ register_activation_hook(__FILE__, 'dbre_activate');
 register_deactivation_hook(__FILE__, 'dbre_deactivate');
 
 function dbre_activate() {
-    // Initialize plugin options if they don't exist
-    if (false === get_option(DBRE_ENABLED_KEY)) {
-        add_option(DBRE_ENABLED_KEY, true);
-    }
+    // Only initialize the settings
     if (false === get_option(DBRE_SETTINGS_KEY)) {
         add_option(DBRE_SETTINGS_KEY, []);
     }
@@ -57,7 +54,6 @@ define('DBRE_IOS_URL_PATTERN', '/^https:\/\/apps\.apple\.com/');
 define('DBRE_ANDROID_URL_PATTERN', '/^https:\/\/play\.google\.com/');
 // Option names
 define('DBRE_SETTINGS_KEY', 'dbre_entries');
-define('DBRE_ENABLED_KEY', 'dbre_enabled');
 
 // Validation helper class
 class DBRE_Validator {
@@ -162,7 +158,6 @@ function dbre_scripts($hook) {
         'homeUrl' => home_url(),
         'pages' => $formatted_pages,
         'settings' => $saved_settings,
-        'globalEnabled' => get_option(DBRE_ENABLED_KEY, false),
         'pluginUrl' => plugins_url('', __FILE__),
     ]);
 }
@@ -223,14 +218,8 @@ function dbre_save_settings() {
         }
     }
 
-    // Sanitize global enabled setting
-    $global_enabled = isset($_POST['globalEnabled']) ? 
-        rest_sanitize_boolean(sanitize_text_field(wp_unslash($_POST['globalEnabled']))) : 
-        false;
-
     // Save the sanitized settings
     update_option(DBRE_SETTINGS_KEY, $sanitized_settings);
-    update_option(DBRE_ENABLED_KEY, $global_enabled);
 
     wp_send_json_success([
         'message' => 'Settings saved successfully!',
@@ -245,11 +234,6 @@ function dbre_save_settings() {
 // ===============================================
 function dbre_redirect_logic() {
     try {
-        // Check if redirection is globally enabled
-        if (!get_option(DBRE_ENABLED_KEY)) {
-            return;
-        }
-
         // Get the redirection settings for pages and slugs
         $redirect_pages = get_option(DBRE_SETTINGS_KEY, []);
         if (empty($redirect_pages) || !is_array($redirect_pages)) {
@@ -404,9 +388,7 @@ function dbre_handle_slug_conflicts($slug, $post_ID, $post_status, $post_type, $
 }
 
 function dbre_handle_custom_slugs($wp) {
-    if (!get_option(DBRE_ENABLED_KEY)) {
-        return;
-    }
+
 
     // Get current slug using wp_parse_url
     $request_path = isset($_SERVER['REQUEST_URI']) ? 
