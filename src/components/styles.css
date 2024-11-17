@@ -218,7 +218,7 @@
   
 .url-input-container {
     position: relative;
-    margin-bottom: 20px;
+    margin-bottom: 5px;
   }
   
   .url-input-container input {
@@ -231,24 +231,20 @@
   }
   
   .url-validation-error {
-    position: absolute;
-    bottom: -20px;
+    position: relative;
+    bottom: auto;
     left: 0;
-    right: 0;
-    color: #d63638;
+    margin-top: 4px;
     font-size: 12px;
+    color: #d63638;
     background: #fcf0f1;
     padding: 2px 8px;
     border-radius: 3px;
-    z-index: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
   
   /* Add some spacing to table cells to accommodate validation messages */
   .wp-list-table td {
-    padding-bottom: 24px !important;
+    padding: 15px !important;
     vertical-align: top !important;
   }
   
@@ -455,4 +451,26 @@
 
 .coffee-button-img:hover {
     transform: scale(1.02);
+}
+
+.url-fields-container {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.url-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.url-field label {
+  font-weight: 500;
+  color: #50575e;
+  font-size: 13px;
+}
+
+.wp-list-table th {
+  padding: 10px 15px !important;
 }
