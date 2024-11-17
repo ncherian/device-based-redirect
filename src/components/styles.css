@@ -1,6 +1,6 @@
 .device-redirect-container {
     max-width: none;
-    margin: 20px 0;
+    margin: 10px 0;
     margin-bottom: 60px;
     padding-right: 20px;
     display: flex;
@@ -607,7 +607,6 @@
 .wp-list-table {
     width: 100%;
     table-layout: fixed;
-    margin-top: 20px;
     border-collapse: collapse;
 }
 
@@ -789,8 +788,7 @@
 .tablenav {
     display: flex;
     align-items: center;
-    padding: 8px 0;
-    margin-bottom: 8px;
+    margin-top: 0px;
 }
 
 .bulkactions {
@@ -816,4 +814,74 @@
 .displaying-num {
     margin-left: 15px;
     color: #646970;
+}
+
+/* Update responsive styles */
+@media screen and (min-width: 641px) and (max-width: 1280px) {
+    .device-redirect-container {
+        flex-direction: column;
+    }
+
+    /* Create a row for sidebar content */
+    .sidebar-section {
+        width: 100%;
+        display: flex;
+        gap: 20px;
+    }
+
+    /* Set widths for the sections in the row */
+    .sidebar-section .section {
+        flex: 1;  /* Takes up available space */
+        margin-bottom: 0;
+    }
+
+    .sidebar-section .coffee-section {
+        width: 300px;  /* Fixed width for donate section */
+        flex-shrink: 0;
+        margin-top: 0;
+    }
+
+    .main-content {
+        width: 100%;
+    }
+}
+
+/* Mobile styles (up to 480px) */
+@media screen and (max-width: 480px) {
+    .device-redirect-container {
+        flex-direction: column;
+    }
+
+    .sidebar-section {
+        width: 100%;
+        display: block;
+    }
+
+    .sidebar-section .section,
+    .sidebar-section .coffee-section {
+        width: 100%;
+        margin-bottom: 20px;
+    }
+
+    .main-content {
+        width: 100%;
+    }
+}
+
+/* Desktop styles (above 1280px) - keep existing layout */
+@media screen and (min-width: 1281px) {
+    .device-redirect-container {
+        display: flex;
+        flex-direction: row;
+    }
+
+    .sidebar-section {
+        width: 300px;
+        flex-shrink: 0;
+    }
+
+    .main-content {
+        flex-grow: 1;
+        min-width: 0;
+    }
 }

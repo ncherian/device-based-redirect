@@ -1322,6 +1322,37 @@ const handleBulkAction = async (action) => {
                 ))}
               </tbody>
             </table>
+            <div className="tablenav bottom">
+              <div className="alignleft actions bulkactions">
+                <select 
+                  value={bulkAction}
+                  onChange={(e) => setBulkAction(e.target.value)}
+                >
+                  <option value="">Bulk Actions</option>
+                  <option value="delete">Delete</option>
+                  <option value="enable">Enable</option>
+                  <option value="disable">Disable</option>
+                </select>
+                <button 
+                  className="button action" 
+                  onClick={() => {
+                    if (bulkAction) {
+                      handleBulkAction(bulkAction);
+                      setBulkAction(''); // Reset the select after action
+                    }
+                  }}
+                >
+                  Apply
+                </button>
+              </div>
+              {selectedItems.length > 0 && (
+                <div className="alignleft actions">
+                  <span className="displaying-num">
+                    {selectedItems.length} item{selectedItems.length !== 1 ? 's' : ''} selected
+                  </span>
+                </div>
+              )}
+            </div>
         </div>
       </div>
     </div>
