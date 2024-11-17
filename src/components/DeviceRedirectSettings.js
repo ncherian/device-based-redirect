@@ -546,7 +546,6 @@ const getAllRedirects = () => {
                 <th>URL/Page</th>
                 <th>URLs</th>
                 <th>Enabled</th>
-                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -558,7 +557,7 @@ const getAllRedirects = () => {
                     </span>
                   </td>
                   <td>{redirect.displayUrl}</td>
-                  <td>
+                  <td className="url-actions-cell">
                     <div className="url-fields-container">
                       <div className="url-field">
                         <label>iOS URL:</label>
@@ -614,6 +613,19 @@ const getAllRedirects = () => {
                         </div>
                       </div>
                     </div>
+                    <div className="row-actions">
+                      <span className="remove">
+                        <button
+                          onClick={() => redirect.type === 'page' ? 
+                            removePageRedirect(redirect.id) : 
+                            removeSlugRedirect(redirect.id)
+                          }
+                          className="button-link"
+                        >
+                          Remove
+                        </button>
+                      </span>
+                    </div>
                   </td>
                   <td>
                     <ToggleSwitch
@@ -634,17 +646,6 @@ const getAllRedirects = () => {
                       }}
                       small={true}
                     />
-                  </td>
-                  <td>
-                    <button
-                      onClick={() => redirect.type === 'page' ? 
-                        removePageRedirect(redirect.id) : 
-                        removeSlugRedirect(redirect.id)
-                      }
-                      className="button button-secondary"
-                    >
-                      Remove
-                    </button>
                   </td>
                 </tr>
               ))}

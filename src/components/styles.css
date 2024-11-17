@@ -502,3 +502,59 @@
 .add-new + .add-new {
   margin-top: 10px;
 }
+
+/* Add these new styles */
+.url-actions-cell {
+  position: relative;
+}
+
+.row-actions {
+  visibility: hidden;
+  padding: 2px 0 0;
+  color: #666;
+}
+
+/* Show actions on row hover */
+tr:hover .row-actions {
+  visibility: visible;
+}
+
+.button-link {
+  color: #b32d2e;
+  text-decoration: none;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.button-link:hover {
+  color: #dc3232;
+  text-decoration: underline;
+}
+
+/* Adjust spacing for the new layout */
+.url-fields-container {
+  margin-bottom: 8px;
+}
+
+/* Style the row actions container */
+.row-actions {
+  font-size: 13px;
+  padding: 4px 0;
+  color: #666;
+}
+
+.row-actions span {
+  padding: 0 4px;
+}
+
+.row-actions span:first-child {
+  padding-left: 0;
+}
+
+/* Add subtle transition for smoother hover effect */
+.row-actions {
+  transition: visibility 0.1s linear;
+}
