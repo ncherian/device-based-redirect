@@ -892,16 +892,6 @@
     max-width: 200px;
 }
 
-/* Update tablenav styles
-.tablenav {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin: 8px 0;
-    padding: 8px 0;
-} */
-
 .tablenav .actions {
     margin-right: 8px;
 }

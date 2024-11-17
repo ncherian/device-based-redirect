@@ -198,24 +198,13 @@ function dbre_save_settings() {
             continue;
         }
 
-        // Sanitize each setting's values
+        // Sanitize each setting's values - only basic URL sanitization
         $sanitized_settings[$safe_key] = [
             'ios_url' => isset($value['ios_url']) ? esc_url_raw($value['ios_url']) : '',
             'android_url' => isset($value['android_url']) ? esc_url_raw($value['android_url']) : '',
             'backup_url' => isset($value['backup_url']) ? esc_url_raw($value['backup_url']) : '',
             'enabled' => isset($value['enabled']) ? (bool)$value['enabled'] : false
         ];
-
-        // Additional validation for URLs
-        if (!empty($sanitized_settings[$safe_key]['ios_url']) && 
-            !preg_match('/^https:\/\/apps\.apple\.com/', $sanitized_settings[$safe_key]['ios_url'])) {
-            $sanitized_settings[$safe_key]['ios_url'] = '';
-        }
-
-        if (!empty($sanitized_settings[$safe_key]['android_url']) && 
-            !preg_match('/^https:\/\/play\.google\.com/', $sanitized_settings[$safe_key]['android_url'])) {
-            $sanitized_settings[$safe_key]['android_url'] = '';
-        }
     }
 
     // Save the sanitized settings
