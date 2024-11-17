@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './styles.css';
 
 const ToggleSwitch = ({ enabled, onChange, small = false }) => (
@@ -23,6 +23,9 @@ const DeviceRedirectSettings = () => {
     const [urlValidationErrors, setUrlValidationErrors] = useState({});
     const [editingRedirects, setEditingRedirects] = useState({});
     const [editingValues, setEditingValues] = useState({});
+    const [selectedItems, setSelectedItems] = useState([]);
+    const [selectAll, setSelectAll] = useState(false);
+    const [bulkAction, setBulkAction] = useState('');
 
   // Load initial data
   useEffect(() => {
@@ -778,9 +781,132 @@ const handleSaveEdit = async (redirect) => {
   }
 };
 
+const handleSelectAll = (e) => {
+  setSelectAll(e.target.checked);
+  if (e.target.checked) {
+    setSelectedItems(getAllRedirects().map(redirect => redirect.id));
+  } else {
+    setSelectedItems([]);
+  }
+};
+
+const handleSelectItem = (id) => {
+  setSelectedItems(prev => {
+    if (prev.includes(id)) {
+      return prev.filter(item => item !== id);
+    } else {
+      return [...prev, id];
+    }
+  });
+};
+
+const handleBulkAction = async (action) => {
+  if (!selectedItems.length) {
+    setNotification({
+      message: 'Please select items to perform bulk action',
+      type: 'error'
+    });
+    return;
+  }
+
+  let confirmMessage = '';
+  switch(action) {
+    case 'delete':
+      confirmMessage = 'Are you sure you want to delete all selected redirects?';
+      break;
+    case 'enable':
+      confirmMessage = 'Are you sure you want to enable all selected redirects?';
+      break;
+    case 'disable':
+      confirmMessage = 'Are you sure you want to disable all selected redirects?';
+      break;
+    default:
+      return;
+  }
+
+  if (!window.confirm(confirmMessage)) {
+    return;
+  }
+
+  const settings = {};
+  let updatedPageRedirects = [...pageRedirects];
+  let updatedSlugRedirects = [...slugRedirects];
+
+  if (action === 'delete') {
+    updatedPageRedirects = pageRedirects.filter(r => !selectedItems.includes(r.id));
+    updatedSlugRedirects = slugRedirects.filter(r => !selectedItems.includes(r.slug));
+  } else {
+    updatedPageRedirects = pageRedirects.map(r => 
+      selectedItems.includes(r.id) ? { ...r, enabled: action === 'enable' } : r
+    );
+    updatedSlugRedirects = slugRedirects.map(r => 
+      selectedItems.includes(r.slug) ? { ...r, enabled: action === 'enable' } : r
+    );
+  }
+
+  // Prepare settings object
+  updatedPageRedirects.forEach(r => {
+    settings[r.id] = {
+      ios_url: r.iosUrl,
+      android_url: r.androidUrl,
+      backup_url: r.backupUrl,
+      enabled: r.enabled
+    };
+  });
+
+  updatedSlugRedirects.forEach(r => {
+    settings[r.slug] = {
+      ios_url: r.iosUrl,
+      android_url: r.androidUrl,
+      backup_url: r.backupUrl,
+      enabled: r.enabled
+    };
+  });
+
+  try {
+    const formData = new FormData();
+    formData.append('action', 'save_device_redirect_settings');
+    formData.append('nonce', deviceRedirectData.nonce);
+    formData.append('settings', JSON.stringify(settings));
+    
+    const response = await fetch(deviceRedirectData.ajaxUrl, {
+      method: 'POST',
+      body: formData
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      setPageRedirects(updatedPageRedirects);
+      setSlugRedirects(updatedSlugRedirects);
+      setSelectedItems([]);
+      setSelectAll(false);
+
+      const actionText = action === 'delete' ? 'deleted' : 
+                        action === 'enable' ? 'enabled' : 'disabled';
+      
+      setNotification({
+        message: `Selected redirects ${actionText} successfully!`,
+        type: 'success'
+      });
+      
+      setTimeout(() => {
+        setNotification(null);
+      }, 5000);
+    } else {
+      throw new Error(data.data || 'Save failed');
+    }
+  } catch (error) {
+    setNotification({
+      message: `Error performing bulk action: ${error.message}`,
+      type: 'error'
+    });
+  }
+};
+
   return (
     <div className="wrap">
-      <h1>Device-Based Redirection Settings</h1>
+      <h1>Device-Based Redirects</h1>
       
       {notification && (
         <div className="sticky-notification notice notice-${notification.type}">
@@ -875,27 +1001,70 @@ const handleSaveEdit = async (redirect) => {
 
         {/* Main Content Section */}
         <div className="main-content">
-          <div className="section">
-            <h2>Redirects</h2>
+            <div className="tablenav top">
+              <div className="alignleft actions bulkactions">
+                <select 
+                  value={bulkAction}
+                  onChange={(e) => setBulkAction(e.target.value)}
+                >
+                  <option value="">Bulk Actions</option>
+                  <option value="delete">Delete</option>
+                  <option value="enable">Enable</option>
+                  <option value="disable">Disable</option>
+                </select>
+                <button 
+                  className="button action" 
+                  onClick={() => {
+                    if (bulkAction) {
+                      handleBulkAction(bulkAction);
+                      setBulkAction(''); // Reset the select after action
+                    }
+                  }}
+                >
+                  Apply
+                </button>
+              </div>
+              {selectedItems.length > 0 && (
+                <div className="alignleft actions">
+                  <span className="displaying-num">
+                    {selectedItems.length} item{selectedItems.length !== 1 ? 's' : ''} selected
+                  </span>
+                </div>
+              )}
+            </div>
             <table className="wp-list-table widefat fixed striped">
               <thead>
                 <tr>
+                  <td className="manage-column column-cb check-column">
+                    <input
+                      type="checkbox"
+                      checked={selectAll}
+                      onChange={handleSelectAll}
+                    />
+                  </td>
                   <th>Type</th>
-                  <th>URL/Page</th>
-                  <th>URLs</th>
+                  <th>Page/Custom URL</th>
+                  <th>Redirected URLs</th>
                   <th>Enabled</th>
                 </tr>
               </thead>
               <tbody>
                 {getAllRedirects().map(redirect => (
                   <tr key={redirect.id}>
-                    <td>
+                    <th scope="row" className="check-column">
+                      <input
+                        type="checkbox"
+                        checked={selectedItems.includes(redirect.id)}
+                        onChange={() => handleSelectItem(redirect.id)}
+                      />
+                    </th>
+                    <td data-label="Type">
                       <span className={`redirect-type ${redirect.type}`}>
                         {redirect.type === 'page' ? 'Page Redirect' : 'Custom URL'}
                       </span>
                     </td>
-                    <td>{redirect.displayUrl}</td>
-                    <td className="url-actions-cell">
+                    <td data-label="Page/Custom URL">{redirect.displayUrl}</td>
+                    <td data-label="Redirected URLs" className="url-actions-cell">
                       {editingRedirects[redirect.id] ? (
                         <>
                           <div className="url-fields-container">
@@ -1050,7 +1219,7 @@ const handleSaveEdit = async (redirect) => {
                         </>
                       )}
                     </td>
-                    <td>
+                    <td data-label="Status">
                       <ToggleSwitch
                         enabled={redirect.enabled}
                         onChange={async (checked) => {
@@ -1153,7 +1322,6 @@ const handleSaveEdit = async (redirect) => {
                 ))}
               </tbody>
             </table>
-          </div>
         </div>
       </div>
     </div>

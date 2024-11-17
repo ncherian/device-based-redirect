@@ -188,7 +188,7 @@
 }
 
 /* Responsive adjustments */
-@media (max-width: 960px) {
+@media (max-width: 1280px) {
     .device-redirect-container {
         flex-direction: column;
     }
@@ -404,7 +404,7 @@
 }
 
 .wp-list-table th {
-    padding: 10px 15px !important;
+    padding: 18px 15px 18px 15px!important;
 }
 
 /* Add these new styles */
@@ -611,73 +611,140 @@
     border-collapse: collapse;
 }
 
-/* Define column widths */
-.wp-list-table th,
-.wp-list-table td {
-    padding: 15px !important;
-    vertical-align: top !important;
-    box-sizing: border-box;
+/* Checkbox column */
+.check-column {
+    width: 35px !important;
+    min-width: 35px !important;
+    padding: 8px !important;
+    vertical-align: middle !important;
 }
 
-/* Type column - relatively narrow */
-.wp-list-table th:nth-child(1),
-.wp-list-table td:nth-child(1) {
-    width: 10%;
-}
-
-/* URL/Page column - medium width */
+/* Type column */
 .wp-list-table th:nth-child(2),
 .wp-list-table td:nth-child(2) {
-    width: 15%;
-    word-break: break-word;
+    width: 120px;
+    min-width: 120px;
 }
 
-/* URLs column - widest */
+/* Page/URL column */
 .wp-list-table th:nth-child(3),
 .wp-list-table td:nth-child(3) {
-    width: 65%;
+    width: 120px;
+    min-width: 120px;
 }
 
-/* Enabled column - narrow */
+/* URLs column - takes remaining space */
 .wp-list-table th:nth-child(4),
 .wp-list-table td:nth-child(4) {
-    width: 10%;
+    width: 60%;
+    min-width: 300px;
+}
+
+/* Enabled column */
+.wp-list-table th:nth-child(5),
+.wp-list-table td:nth-child(5) {
+    width: 80px;
+    min-width: 80px;
     text-align: center;
 }
 
-/* Ensure URL values wrap properly */
-.url-value {
-    padding: 8px;
-    background: #f0f0f1;
-    border-radius: 4px;
-    color: #50575e;
-    font-family: monospace;
-    word-break: break-all;
-    white-space: normal;
-    font-size: 12px;
-    line-height: 1.4;
-    width: 100%;
-    box-sizing: border-box;
-}
-
-/* Make the table responsive */
-@media screen and (max-width: 782px) {
-    .wp-list-table {
-        table-layout: auto;
+/* Responsive styles */
+@media screen and (max-width: 960px) {
+    .device-redirect-container {
+        flex-direction: column;
     }
-    
-    .wp-list-table th,
+
+    .sidebar-section {
+        width: 100%;
+    }
+
+    .main-content {
+        width: 100%;
+    }
+
+    /* Table responsive styles */
+    .wp-list-table, 
+    .wp-list-table tbody {
+        display: block;
+        width: 100%;
+    }
+
+    .wp-list-table thead {
+        display: none; /* Hide header on mobile */
+    }
+
+    .wp-list-table tr {
+        display: block;
+        margin-bottom: 20px;
+        border: 1px solid #ccd0d4;
+        background: #fff;
+        padding: 10px;
+    }
+
     .wp-list-table td {
         display: block;
         width: 100% !important;
-        box-sizing: border-box;
+        min-width: 0 !important;
+        padding: 10px 10px 10px 25px !important;
+        text-align: left;
+        border: none;
     }
 
-    .wp-list-table td:before {
+    /* Add labels for mobile view */
+    .wp-list-table td::before {
         content: attr(data-label);
-        float: left;
+        display: block;
         font-weight: 600;
-        padding-right: 10px;
+        margin-bottom: 5px;
+        color: #23282d;
+    }
+
+    /* Adjust checkbox column on mobile */
+    .check-column {
+        padding: 10px !important;
+        width: auto !important;
+        text-align: left;
+    }
+
+    /* Adjust URL displays for mobile */
+    .url-display-container {
+        margin-top: 10px;
+    }
+
+    .url-value {
+        max-width: none;
+        width: 100%;
+    }
+
+    /* Adjust edit mode for mobile */
+    .url-fields-container {
+        margin-top: 10px;
+    }
+
+    .edit-actions {
+        margin-top: 15px;
+        justify-content: flex-start;
+    }
+
+    /* Adjust toggle switch alignment */
+    td:last-child {
+        text-align: left !important;
+    }
+
+    /* Adjust bulk actions for mobile */
+    .tablenav {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .bulkactions {
+        width: 100%;
+    }
+
+    .bulkactions select {
+        max-width: none;
+        flex: 1;
     }
 }
 
@@ -716,4 +783,37 @@
 /* Add spacing between sections */
 .section + .section {
     margin-top: 20px;
+}
+
+/* Bulk actions styles */
+.tablenav {
+    display: flex;
+    align-items: center;
+    padding: 8px 0;
+    margin-bottom: 8px;
+}
+
+.bulkactions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.bulkactions select {
+    max-width: 200px;
+}
+
+.check-column {
+    width: 2.2em;
+    padding: 8px 10px !important;
+    vertical-align: top !important;
+}
+
+.check-column input {
+    margin: 0;
+}
+
+.displaying-num {
+    margin-left: 15px;
+    color: #646970;
 }
