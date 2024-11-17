@@ -869,25 +869,17 @@ const handleSaveEdit = async (redirect) => {
       
       {/* Notification component */}
       {notification && (
-      <div className={`notice notice-${notification.type} is-dismissible`}>
-        <p>{notification.message}</p>
-        <button 
-          type="button" 
-          className="notice-dismiss"
-          onClick={() => setNotification(null)}
-        >
-          <span className="screen-reader-text">Dismiss this notice.</span>
-        </button>
-      </div>
-    )}
-
-    {hasUnsavedChanges && (
-      <div className="notice notice-warning inline">
-        <p>
-          <strong>You have unsaved changes.</strong> Don't forget to save your changes when you're done editing.
-        </p>
-      </div>
-    )}
+        <div className="sticky-notification notice notice-${notification.type}">
+          <p>{notification.message}</p>
+          <button 
+            type="button" 
+            className="notice-dismiss"
+            onClick={() => setNotification(null)}
+          >
+            <span className="screen-reader-text">Dismiss this notice.</span>
+          </button>
+        </div>
+      )}
       
       <div className="device-redirect-container">
 
@@ -1213,11 +1205,6 @@ const handleSaveEdit = async (redirect) => {
         </div>
         </div>
       </div>
-      <StickySaveBar
-      onSave={saveSettings}
-      saving={saving}
-      hasUnsavedChanges={hasUnsavedChanges}
-    />
     </div>
   );
 };

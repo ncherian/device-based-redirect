@@ -315,280 +315,271 @@
     opacity: 1;
   }
 
-  .sticky-save-bar {
-    position: fixed;
-    bottom: 0;
-    left: 160px; /* WordPress admin menu width */
-    right: 0;
+  .url-input-group {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    max-width: 500px;
     background: #fff;
-    box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.05);
-    border-top: 1px solid #c3c4c7;
-    z-index: 9999;
-    transition: all 0.3s ease;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
   }
   
-  @media screen and (max-width: 960px) {
-    .sticky-save-bar {
-      left: 36px; /* WordPress collapsed menu width */
-    }
+  .url-input-group:focus-within {
+    border-color: #2271b1;
+    box-shadow: 0 0 0 1px #2271b1;
   }
   
-  @media screen and (max-width: 782px) {
-    .sticky-save-bar {
-      left: 0;
-    }
+  .url-prefix {
+    padding: 0 8px;
+    color: #50575e;
+    background: #f0f0f1;
+    border-right: 1px solid #8c8f94;
+    line-height: 2;
+    white-space: nowrap;
+    border-top-left-radius: 3px;
+    border-bottom-left-radius: 3px;
   }
   
-  .sticky-save-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 20px;
-    max-width: 1200px;
-    margin: 0 auto;
+  .slug-input {
+    border: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    flex: 1;
   }
   
-  .changes-indicator {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: #72777c;
-    font-size: 13px;
+  .slug-input:focus {
+    outline: none;
   }
   
-  .changes-indicator .dashicons {
-    color: #dba617;
-    font-size: 18px;
-    width: 18px;
-    height: 18px;
-  }
-  
-  .sticky-save-actions {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  
-  /* Style the warning notice */
-.notice-warning.inline {
-  border-left-color: #dba617;
-  margin: 15px 0;
-  background: #fcf9e8;
-  border: 1px solid #dba617;
-}
-
-/* Animation for sticky bar */
-@keyframes slideUp {
-  from {
-    transform: translateY(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-.sticky-save-bar {
-  animation: slideUp 0.3s ease-out;
-}
-
-/* Adjust WordPress admin footer */
-#wpfooter {
-  padding-bottom: 50px;
-}
-
-
-.url-input-group {
-  display: flex;
-  align-items: center;
-  flex: 1;
-  max-width: 500px;
-  background: #fff;
-  border: 1px solid #8c8f94;
-  border-radius: 4px;
-}
-
-.url-input-group:focus-within {
-  border-color: #2271b1;
-  box-shadow: 0 0 0 1px #2271b1;
-}
-
-.url-prefix {
-  padding: 0 8px;
-  color: #50575e;
-  background: #f0f0f1;
-  border-right: 1px solid #8c8f94;
-  line-height: 2;
-  white-space: nowrap;
-  border-top-left-radius: 3px;
-  border-bottom-left-radius: 3px;
-}
-
-.slug-input {
-  border: none !important;
-  box-shadow: none !important;
-  margin: 0 !important;
-  flex: 1;
-}
-
-.slug-input:focus {
-  outline: none;
-}
-
-.coffee-button-container {
+  .coffee-button-container {
     display: flex;
     justify-content: center;
     align-items: center;
     margin: 20px 0;
-}
-
-.coffee-button-img {
+  }
+  
+  .coffee-button-img {
     height: 40px;
     width: auto;
     transition: transform 0.2s ease;
-}
-
-.coffee-button-img:hover {
+  }
+  
+  .coffee-button-img:hover {
     transform: scale(1.02);
-}
-
-.url-fields-container {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.url-field {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.url-field label {
-  font-weight: 500;
-  color: #50575e;
-  font-size: 13px;
-}
-
-.wp-list-table th {
-  padding: 10px 15px !important;
-}
-
-/* Add these new styles */
-.redirect-type {
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: 3px;
-  font-size: 12px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.redirect-type.page {
-  background-color: #e9f5e9;
-  color: #1b8b1b;
-  border: 1px solid #98d598;
-}
-
-.redirect-type.custom {
-  background-color: #f0f6fc;
-  color: #0073aa;
-  border: 1px solid #99cff0;
-}
-
-/* Add spacing between the add-new sections */
-.add-new + .add-new {
-  margin-top: 10px;
-}
-
-/* Add these new styles */
-.url-display-container {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.url-display {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.url-display label {
-  font-weight: 500;
-  color: #50575e;
-  font-size: 13px;
-}
-
-.url-value {
-  padding: 8px;
-  background: #f0f0f1;
-  border-radius: 4px;
-  color: #50575e;
-  font-family: monospace;
-  word-break: break-all;
-}
-
-.row-actions span.edit {
-  color: #0073aa;
-}
-
-.row-actions span.save {
-  color: #46b450;
-}
-
-.row-actions span.cancel {
-  color: #666;
-}
-
-.row-actions span + span::before {
-  content: " | ";
-  color: #dcdcde;
-}
-
-.button-link.save {
-  background-color: #2271b1;
-  color: #fff;
-  padding: 4px 12px;
-  border-radius: 3px;
-  border: 1px solid #2271b1;
-}
-
-.button-link.save:hover {
-  background-color: #135e96;
-  border-color: #135e96;
-  color: #fff;
-}
-
-.button-link.cancel {
-  background-color: #f6f7f7;
-  color: #50575e;
-  padding: 4px 12px;
-  border-radius: 3px;
-  border: 1px solid #c3c4c7;
-  margin-left: 8px;
-}
-
-.button-link.cancel:hover {
-  background-color: #f0f0f1;
-  color: #3c434a;
-  border-color: #8c8f94;
-}
-
-/* Update only these specific styles */
-.row-actions {
-  visibility: visible !important; /* Override the hover-only visibility */
-}
-
-/* Add these new styles */
-.edit-actions {
-  margin-top: 15px;
-  display: flex;
-  gap: 8px;
-}
-
-.edit-actions .button {
-  min-width: 60px;
-}
+  }
+  
+  .url-fields-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  .url-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  
+  .url-field label {
+    font-weight: 500;
+    color: #50575e;
+    font-size: 13px;
+  }
+  
+  .wp-list-table th {
+    padding: 10px 15px !important;
+  }
+  
+  /* Add these new styles */
+  .redirect-type {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .redirect-type.page {
+    background-color: #e9f5e9;
+    color: #1b8b1b;
+    border: 1px solid #98d598;
+  }
+  
+  .redirect-type.custom {
+    background-color: #f0f6fc;
+    color: #0073aa;
+    border: 1px solid #99cff0;
+  }
+  
+  /* Add spacing between the add-new sections */
+  .add-new + .add-new {
+    margin-top: 10px;
+  }
+  
+  /* Add these new styles */
+  .url-display-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .url-display {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .url-display label {
+    font-weight: 500;
+    color: #50575e;
+    font-size: 13px;
+  }
+  
+  .url-value {
+    padding: 8px;
+    background: #f0f0f1;
+    border-radius: 4px;
+    color: #50575e;
+    font-family: monospace;
+    word-break: break-all;
+  }
+  
+  .row-actions span.edit {
+    color: #0073aa;
+  }
+  
+  .row-actions span.save {
+    color: #46b450;
+  }
+  
+  .row-actions span.cancel {
+    color: #666;
+  }
+  
+  .row-actions span + span::before {
+    content: " | ";
+    color: #dcdcde;
+  }
+  
+  .button-link.save {
+    background-color: #2271b1;
+    color: #fff;
+    padding: 4px 12px;
+    border-radius: 3px;
+    border: 1px solid #2271b1;
+  }
+  
+  .button-link.save:hover {
+    background-color: #135e96;
+    border-color: #135e96;
+    color: #fff;
+  }
+  
+  .button-link.cancel {
+    background-color: #f6f7f7;
+    color: #50575e;
+    padding: 4px 12px;
+    border-radius: 3px;
+    border: 1px solid #c3c4c7;
+    margin-left: 8px;
+  }
+  
+  .button-link.cancel:hover {
+    background-color: #f0f0f1;
+    color: #3c434a;
+    border-color: #8c8f94;
+  }
+  
+  /* Update only these specific styles */
+  .row-actions {
+    visibility: visible !important; /* Override the hover-only visibility */
+  }
+  
+  /* Add these new styles */
+  .edit-actions {
+    margin-top: 15px;
+    display: flex;
+    gap: 8px;
+  }
+  
+  .edit-actions .button {
+    min-width: 60px;
+  }
+  
+  /* Update the sticky notification styles */
+  .sticky-notification {
+    position: fixed;
+    top: 50px;
+    right: 25px;
+    z-index: 9999;
+    max-width: 400px;
+    margin: 0;
+    padding: 12px 40px 12px 15px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    animation: slideInRight 0.3s ease-out;
+    border: none;
+  }
+  
+  /* Style success notification */
+  .sticky-notification.notice-success {
+    background: #00a32a;
+    color: #fff;
+    border-left: none;
+  }
+  
+  /* Style error notification */
+  .sticky-notification.notice-error {
+    background: #d63638;
+    color: #fff;
+    border-left: none;
+  }
+  
+  /* Style the dismiss button */
+  .sticky-notification .notice-dismiss {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    padding: 8px;
+    color: rgba(255, 255, 255, 0.8);
+    border: none;
+    background: none;
+    cursor: pointer;
+  }
+  
+  .sticky-notification .notice-dismiss:before {
+    content: "\f153";
+    font: normal 16px/20px dashicons;
+  }
+  
+  .sticky-notification p {
+    margin: 0;
+    padding: 0;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  
+  @keyframes slideInRight {
+    from {
+      transform: translateX(120%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+  
+  /* Adjust for mobile */
+  @media screen and (max-width: 782px) {
+    .sticky-notification {
+      top: 60px;
+      right: 15px;
+      left: 15px;
+      max-width: none;
+    }
+  }
