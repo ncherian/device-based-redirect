@@ -239,7 +239,7 @@ const handleSlugRedirectChange = (slug, field, value) => {
 };
 
 
-  const handleAddPageRedirect = () => {
+  const handleAddPageRedirect = async () => {
     if (!selectedPage) {
         setError({ type: 'page', message: 'Please select a page' });
         return;
@@ -254,21 +254,76 @@ const handleSlugRedirectChange = (slug, field, value) => {
         p => p.value.toString() === selectedPage.toString()
     )?.label || '';
 
-    setPageRedirects([
-        ...pageRedirects,
-        {
-            id: selectedPage,
-            title: pageTitle,
-            iosUrl: '',
-            androidUrl: '',
-            backupUrl: '',
-            enabled: true
-        }
-    ]);
+    const newRedirect = {
+        id: selectedPage,
+        title: pageTitle,
+        iosUrl: '',
+        androidUrl: '',
+        backupUrl: '',
+        enabled: true
+    };
+
+    const updatedPageRedirects = [...pageRedirects, newRedirect];
+
+    // Prepare settings for save
+    const settings = {};
+    updatedPageRedirects.forEach(redirect => {
+        settings[redirect.id] = {
+            ios_url: redirect.iosUrl,
+            android_url: redirect.androidUrl,
+            backup_url: redirect.backupUrl,
+            enabled: redirect.enabled
+        };
+    });
     
-    setSelectedPage('');
-    setError({ type: '', message: '' });
-    setHasUnsavedChanges(true);
+    slugRedirects.forEach(redirect => {
+        settings[redirect.slug] = {
+            ios_url: redirect.iosUrl,
+            android_url: redirect.androidUrl,
+            backup_url: redirect.backupUrl,
+            enabled: redirect.enabled
+        };
+    });
+
+    try {
+        const formData = new FormData();
+        formData.append('action', 'save_device_redirect_settings');
+        formData.append('nonce', deviceRedirectData.nonce);
+        formData.append('settings', JSON.stringify(settings));
+        
+        const response = await fetch(deviceRedirectData.ajaxUrl, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            setPageRedirects(updatedPageRedirects);
+            setInitialData({
+                pageRedirects: updatedPageRedirects,
+                slugRedirects: [...slugRedirects]
+            });
+            setSelectedPage('');
+            setError({ type: '', message: '' });
+            
+            setNotification({
+                message: 'Page redirect added successfully!',
+                type: 'success'
+            });
+            
+            setTimeout(() => {
+                setNotification(null);
+            }, 5000);
+        } else {
+            throw new Error(data.data || 'Save failed');
+        }
+    } catch (error) {
+        setNotification({
+            message: `Error adding page redirect: ${error.message}`,
+            type: 'error'
+        });
+    }
 };
 
   
@@ -363,55 +418,109 @@ const removeSlugRedirect = async (slug) => {
   
   const handleAddSlugRedirect = async () => {
     if (!newSlug) {
-      setError({ type: 'slug', message: 'Please enter a custom slug' });
-      return;
+        setError({ type: 'slug', message: 'Please enter a custom slug' });
+        return;
     }
     
-    // Clean the slug (remove spaces, special characters)
+    // Clean the slug
     const cleanSlug = newSlug
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '');
-  
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+    
     if (slugRedirects.some(redirect => redirect.slug === cleanSlug)) {
-      setError({ type: 'slug', message: 'This slug has already been added!' });
-      return;
-    }
-  
-    // Validate slug availability
-    try {
-      const response = await fetch(
-        `${deviceRedirectData.restUrl}device-redirect/v1/validate-slug?slug=${encodeURIComponent(cleanSlug)}`,
-        {
-          headers: {
-            'X-WP-Nonce': deviceRedirectData.restNonce
-          }
-        }
-      );
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        setError({ type: 'slug', message: data.message || 'This slug is not available' });
+        setError({ type: 'slug', message: 'This slug has already been added!' });
         return;
-      }
-  
-      setSlugRedirects([...slugRedirects, {
-        slug: cleanSlug,
-        iosUrl: '',
-        androidUrl: '',
-        backupUrl: '',
-        enabled: true
-      }]);
-      
-      setNewSlug('');
-      setError({ type: '', message: '' });
-      setHasUnsavedChanges(true);  // Mark as having unsaved changes
-    } catch (error) {
-      setError({ type: 'slug', message: 'Error validating slug. Please try again.' });
     }
-  };
+
+    try {
+        // Validate slug first
+        const validateResponse = await fetch(
+            `${deviceRedirectData.restUrl}device-redirect/v1/validate-slug?slug=${encodeURIComponent(cleanSlug)}`,
+            {
+                headers: {
+                    'X-WP-Nonce': deviceRedirectData.restNonce
+                }
+            }
+        );
+        
+        const validateData = await validateResponse.json();
+        
+        if (!validateResponse.ok) {
+            setError({ type: 'slug', message: validateData.message || 'This slug is not available' });
+            return;
+        }
+
+        const newRedirect = {
+            slug: cleanSlug,
+            iosUrl: '',
+            androidUrl: '',
+            backupUrl: '',
+            enabled: true
+        };
+
+        const updatedSlugRedirects = [...slugRedirects, newRedirect];
+
+        // Prepare settings for save
+        const settings = {};
+        pageRedirects.forEach(redirect => {
+            settings[redirect.id] = {
+                ios_url: redirect.iosUrl,
+                android_url: redirect.androidUrl,
+                backup_url: redirect.backupUrl,
+                enabled: redirect.enabled
+            };
+        });
+        
+        updatedSlugRedirects.forEach(redirect => {
+            settings[redirect.slug] = {
+                ios_url: redirect.iosUrl,
+                android_url: redirect.androidUrl,
+                backup_url: redirect.backupUrl,
+                enabled: redirect.enabled
+            };
+        });
+
+        const formData = new FormData();
+        formData.append('action', 'save_device_redirect_settings');
+        formData.append('nonce', deviceRedirectData.nonce);
+        formData.append('settings', JSON.stringify(settings));
+        
+        const response = await fetch(deviceRedirectData.ajaxUrl, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            setSlugRedirects(updatedSlugRedirects);
+            setInitialData({
+                pageRedirects: [...pageRedirects],
+                slugRedirects: updatedSlugRedirects
+            });
+            setNewSlug('');
+            setError({ type: '', message: '' });
+            
+            setNotification({
+                message: 'Custom URL redirect added successfully!',
+                type: 'success'
+            });
+            
+            setTimeout(() => {
+                setNotification(null);
+            }, 5000);
+        } else {
+            throw new Error(data.data || 'Save failed');
+        }
+    } catch (error) {
+        setNotification({
+            message: `Error adding custom URL redirect: ${error.message}`,
+            type: 'error'
+        });
+    }
+};
   
   
   const handleSlugChange = (e) => {
@@ -981,19 +1090,103 @@ const handleSaveEdit = async (redirect) => {
                   <td>
                     <ToggleSwitch
                       enabled={redirect.enabled}
-                      onChange={(checked) => {
+                      onChange={async (checked) => {
+                        let updatedPageRedirects = [...pageRedirects];
+                        let updatedSlugRedirects = [...slugRedirects];
+                        const settings = {};
+
                         if (redirect.type === 'page') {
-                          const updated = pageRedirects.map(r =>
+                          updatedPageRedirects = pageRedirects.map(r =>
                             r.id === redirect.id ? { ...r, enabled: checked } : r
                           );
-                          setPageRedirects(updated);
+                          setPageRedirects(updatedPageRedirects);
+                          
+                          // Prepare settings
+                          updatedPageRedirects.forEach(r => {
+                            settings[r.id] = {
+                              ios_url: r.iosUrl,
+                              android_url: r.androidUrl,
+                              backup_url: r.backupUrl,
+                              enabled: r.enabled
+                            };
+                          });
+                          
+                          slugRedirects.forEach(r => {
+                            settings[r.slug] = {
+                              ios_url: r.iosUrl,
+                              android_url: r.androidUrl,
+                              backup_url: r.backupUrl,
+                              enabled: r.enabled
+                            };
+                          });
                         } else {
-                          const updated = slugRedirects.map(r =>
+                          updatedSlugRedirects = slugRedirects.map(r =>
                             r.slug === redirect.id ? { ...r, enabled: checked } : r
                           );
-                          setSlugRedirects(updated);
+                          setSlugRedirects(updatedSlugRedirects);
+                          
+                          // Prepare settings
+                          pageRedirects.forEach(r => {
+                            settings[r.id] = {
+                              ios_url: r.iosUrl,
+                              android_url: r.androidUrl,
+                              backup_url: r.backupUrl,
+                              enabled: r.enabled
+                            };
+                          });
+                          
+                          updatedSlugRedirects.forEach(r => {
+                            settings[r.slug] = {
+                              ios_url: r.iosUrl,
+                              android_url: r.androidUrl,
+                              backup_url: r.backupUrl,
+                              enabled: r.enabled
+                            };
+                          });
                         }
-                        setHasUnsavedChanges(true);
+
+                        try {
+                          const formData = new FormData();
+                          formData.append('action', 'save_device_redirect_settings');
+                          formData.append('nonce', deviceRedirectData.nonce);
+                          formData.append('settings', JSON.stringify(settings));
+                          
+                          const response = await fetch(deviceRedirectData.ajaxUrl, {
+                            method: 'POST',
+                            body: formData
+                          });
+                          
+                          const data = await response.json();
+                          
+                          if (data.success) {
+                            setInitialData({
+                              pageRedirects: updatedPageRedirects,
+                              slugRedirects: updatedSlugRedirects
+                            });
+                            
+                            setNotification({
+                              message: `Redirect ${checked ? 'enabled' : 'disabled'} successfully!`,
+                              type: 'success'
+                            });
+                            
+                            setTimeout(() => {
+                              setNotification(null);
+                            }, 5000);
+                          } else {
+                            throw new Error(data.data || 'Save failed');
+                          }
+                        } catch (error) {
+                          setNotification({
+                            message: `Error updating status: ${error.message}`,
+                            type: 'error'
+                          });
+                          // Revert the state if save failed
+                          if (redirect.type === 'page') {
+                            setPageRedirects(pageRedirects);
+                          } else {
+                            setSlugRedirects(slugRedirects);
+                          }
+                        }
                       }}
                       small={true}
                     />
@@ -1004,23 +1197,6 @@ const handleSaveEdit = async (redirect) => {
           </table>
         </div>
 
-        <div className="submit-section">
-            <div className="submit-wrapper">
-            <button
-                onClick={saveSettings}
-                disabled={saving}
-                className="button button-primary button-large"
-            >
-                {saving ? 'Saving...' : 'Save Changes'}
-            </button>
-            
-            {notification && notification.type === 'success' && (
-              <div className="inline-notice notice-success">
-                <span>{notification.message}</span>
-              </div>
-            )}
-            </div>
-        </div>
         <div className="coffee-section">
         <div className="coffee-message">
             <h3>Support the Development</h3>
