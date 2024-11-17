@@ -21,38 +21,8 @@ const DeviceRedirectSettings = () => {
     const [saving, setSaving] = useState(false);
     const [notification, setNotification] = useState(null);
     const [urlValidationErrors, setUrlValidationErrors] = useState({});
-    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-    const [initialData, setInitialData] = useState({
-      pageRedirects: [],
-      slugRedirects: []
-    });
     const [editingRedirects, setEditingRedirects] = useState({});
     const [editingValues, setEditingValues] = useState({});
-
-  // To set up the leave page warning
-  useEffect(() => {
-    const handleBeforeUnload = (e) => {
-        if (hasUnsavedChanges) {
-            e.preventDefault();
-            const message = 'You have unsaved changes. Are you sure you want to leave?';
-            e.returnValue = message;
-            return message;
-        }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-}, [hasUnsavedChanges]);
-
-// To detect changes
-useEffect(() => {
-  const hasChanges = 
-    JSON.stringify(initialData.pageRedirects) !== JSON.stringify(pageRedirects) ||
-    JSON.stringify(initialData.slugRedirects) !== JSON.stringify(slugRedirects);
-  
-  setHasUnsavedChanges(hasChanges);
-}, [pageRedirects, slugRedirects, initialData]);
-
 
   // Load initial data
   useEffect(() => {
@@ -86,32 +56,11 @@ useEffect(() => {
         setPageRedirects(pages);
         setSlugRedirects(slugs);
         
-        // Set initial data for change tracking
-        setInitialData({
-          pageRedirects: [...pages],
-          slugRedirects: [...slugs]
-        });
-
         debugSavedData();
     };
 
     loadSavedSettings();
   }, []);
-
-  useEffect(() => {
-    const detectChanges = () => {
-        const hasChanges = 
-            JSON.stringify(initialData.pageRedirects) !== JSON.stringify(pageRedirects) ||
-            JSON.stringify(initialData.slugRedirects) !== JSON.stringify(slugRedirects);
-        
-        setHasUnsavedChanges(hasChanges);
-    };
-
-    // Only run change detection if initialData has been set
-    if (initialData.pageRedirects.length > 0 || initialData.slugRedirects.length > 0) {
-        detectChanges();
-    }
-}, [pageRedirects, slugRedirects, initialData]);
 
   const debugSavedData = () => {
     console.group('Device Redirect Debug Info');
@@ -126,7 +75,6 @@ useEffect(() => {
         r.id === id ? { ...r, [field]: value } : r
     );
     setPageRedirects(updated);
-    setHasUnsavedChanges(true);
 };
 
 const handleSlugRedirectChange = (slug, field, value) => {
@@ -134,7 +82,6 @@ const handleSlugRedirectChange = (slug, field, value) => {
         r.slug === slug ? { ...r, [field]: value } : r
     );
     setSlugRedirects(updated);
-    setHasUnsavedChanges(true);
 };
 
   // Function to validate a slug
@@ -210,12 +157,6 @@ const handleSlugRedirectChange = (slug, field, value) => {
             const data = await response.json();
             
             if (data.success) {
-                setInitialData({
-                    pageRedirects: updatedPageRedirects,
-                    slugRedirects: [...slugRedirects]
-                });
-                setHasUnsavedChanges(false);
-                
                 setNotification({
                     message: 'Redirect removed successfully!',
                     type: 'success'
@@ -300,10 +241,6 @@ const handleSlugRedirectChange = (slug, field, value) => {
         
         if (data.success) {
             setPageRedirects(updatedPageRedirects);
-            setInitialData({
-                pageRedirects: updatedPageRedirects,
-                slugRedirects: [...slugRedirects]
-            });
             setSelectedPage('');
             setError({ type: '', message: '' });
             
@@ -388,12 +325,6 @@ const removeSlugRedirect = async (slug) => {
             const data = await response.json();
             
             if (data.success) {
-                setInitialData({
-                    pageRedirects: [...pageRedirects],
-                    slugRedirects: updatedSlugRedirects
-                });
-                setHasUnsavedChanges(false);
-                
                 setNotification({
                     message: 'Redirect removed successfully!',
                     type: 'success'
@@ -496,10 +427,6 @@ const removeSlugRedirect = async (slug) => {
         
         if (data.success) {
             setSlugRedirects(updatedSlugRedirects);
-            setInitialData({
-                pageRedirects: [...pageRedirects],
-                slugRedirects: updatedSlugRedirects
-            });
             setNewSlug('');
             setError({ type: '', message: '' });
             
@@ -633,14 +560,6 @@ const getUrlErrorMessage = (type) => {
         const data = await response.json();
         
         if (data.success) {
-            // Update the initial data to match current state
-            setInitialData({
-                pageRedirects: [...pageRedirects],
-                slugRedirects: [...slugRedirects]
-            });
-            
-            setHasUnsavedChanges(false);
-
             setNotification({
                 message: data.data.message,
                 type: 'success'
@@ -660,30 +579,6 @@ const getUrlErrorMessage = (type) => {
     } finally {
         setSaving(false);
     }
-};
-
-const StickySaveBar = ({ onSave, saving, hasUnsavedChanges }) => {
-  if (!hasUnsavedChanges) return null;
-
-  return (
-    <div className="sticky-save-bar">
-      <div className="sticky-save-content">
-        <div className="changes-indicator">
-          <span className="dashicons dashicons-warning"></span>
-          You have unsaved changes
-        </div>
-        <div className="sticky-save-actions">
-          <button
-            onClick={onSave}
-            disabled={saving}
-            className="button button-primary"
-          >
-            {saving ? 'Saving...' : 'Save Changes'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 };
 
 const getAllRedirects = () => {
@@ -828,12 +723,7 @@ const handleSaveEdit = async (redirect) => {
     const data = await response.json();
     
     if (data.success) {
-      // Update initialData to match current state
-      setInitialData({
-        pageRedirects: updatedPageRedirects,
-        slugRedirects: updatedSlugRedirects
-      });
-
+      // Close edit mode
       setEditingRedirects(prev => ({
         ...prev,
         [redirect.id]: false
@@ -843,7 +733,7 @@ const handleSaveEdit = async (redirect) => {
         delete newValues[redirect.id];
         return newValues;
       });
-      
+
       setNotification({
         message: 'Changes saved successfully!',
         type: 'success'
@@ -1151,11 +1041,6 @@ const handleSaveEdit = async (redirect) => {
                           const data = await response.json();
                           
                           if (data.success) {
-                            setInitialData({
-                              pageRedirects: updatedPageRedirects,
-                              slugRedirects: updatedSlugRedirects
-                            });
-                            
                             setNotification({
                               message: `Redirect ${checked ? 'enabled' : 'disabled'} successfully!`,
                               type: 'success'
