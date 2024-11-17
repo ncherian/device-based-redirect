@@ -575,22 +575,28 @@ const getUrlErrorMessage = (type) => {
 };
 
 const getAllRedirects = () => {
-  const pageRedirectsWithType = pageRedirects.map(redirect => ({
-    ...redirect,
-    type: 'page',
-    displayUrl: redirect.title
-  }));
+  const pageRedirectsWithType = pageRedirects.map(redirect => {
+    const page = deviceRedirectData.pages.find(p => p.value.toString() === redirect.id.toString());
+    const pageSlug = page?.slug || redirect.id;
+    
+    return {
+      ...redirect,
+      type: 'page',
+      displayTitle: redirect.title,  // Store the title separately
+      displayUrl: `${deviceRedirectData.homeUrl}/${pageSlug}`  // Use same URL format for both types
+    };
+  });
   
   const slugRedirectsWithType = slugRedirects.map(redirect => ({
     ...redirect,
     type: 'custom',
+    displayTitle: redirect.slug,  // Use slug as title
     displayUrl: `${deviceRedirectData.homeUrl}/${redirect.slug}`,
     id: redirect.slug
   }));
   
   let allRedirects = [...pageRedirectsWithType, ...slugRedirectsWithType];
   
-  // Apply type filter
   if (typeFilter !== 'all') {
     allRedirects = allRedirects.filter(redirect => redirect.type === typeFilter);
   }
@@ -1081,7 +1087,19 @@ const handleBulkAction = async (action) => {
                         onChange={() => handleSelectItem(redirect.id)}
                       />
                     </th>
-                    <td data-label="Page/Custom URL">{redirect.displayUrl}</td>
+                    <td data-label="Page/Custom URL">
+                      <div className="page-url-container">
+                        <div className="page-title">{redirect.displayTitle}</div>
+                        <a 
+                          href={redirect.displayUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="page-url"
+                        >
+                          {redirect.displayUrl}
+                        </a>
+                      </div>
+                    </td>
                     <td data-label="Type">
                       <span className={`redirect-type ${redirect.type}`}>
                         {redirect.type === 'page' ? 'Page Redirect' : 'Custom URL'}
@@ -1207,15 +1225,33 @@ const handleBulkAction = async (action) => {
                           <div className="url-display-container">
                             <div className="url-display">
                               <label>iOS URL:</label>
-                              <div className="url-value">{redirect.iosUrl || '—'}</div>
+                              <div className="url-value">
+                                {redirect.iosUrl ? (
+                                  <a href={redirect.iosUrl} target="_blank" rel="noopener noreferrer">
+                                    {redirect.iosUrl}
+                                  </a>
+                                ) : '—'}
+                              </div>
                             </div>
                             <div className="url-display">
                               <label>Android URL:</label>
-                              <div className="url-value">{redirect.androidUrl || '—'}</div>
+                              <div className="url-value">
+                                {redirect.androidUrl ? (
+                                  <a href={redirect.androidUrl} target="_blank" rel="noopener noreferrer">
+                                    {redirect.androidUrl}
+                                  </a>
+                                ) : '—'}
+                              </div>
                             </div>
                             <div className="url-display">
                               <label>Other Devices URL:</label>
-                              <div className="url-value">{redirect.backupUrl || '—'}</div>
+                              <div className="url-value">
+                                {redirect.backupUrl ? (
+                                  <a href={redirect.backupUrl} target="_blank" rel="noopener noreferrer">
+                                    {redirect.backupUrl}
+                                  </a>
+                                ) : '—'}
+                              </div>
                             </div>
                           </div>
                           <div className="row-actions">

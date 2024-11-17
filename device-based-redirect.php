@@ -144,8 +144,9 @@ function dbre_scripts($hook) {
     $all_pages = get_pages();
     $formatted_pages = array_map(function($page) {
         return [
-            'value' => (string)$page->ID, // Convert to string to ensure consistent comparison
-            'label' => $page->post_title
+            'value' => (string)$page->ID,
+            'label' => $page->post_title,
+            'slug' => $page->post_name
         ];
     }, $all_pages);
 
