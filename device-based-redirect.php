@@ -230,13 +230,20 @@ function dbre_save_settings() {
 
     try {
         $saved_entries = [];
+        $deleted_count = 0;
+
         foreach ($settings as $key => $value) {
+            // Log the current operation
+            error_log("Processing setting for key: {$key}");
+            error_log("Value: " . var_export($value, true));
+
             // If value is null, delete the redirect
             if ($value === null) {
-                $result = dbre_delete_redirect($key);
-                if ($result === false) {
-                    throw new Exception('Failed to delete redirect');
+                $delete_result = dbre_delete_redirect($key);
+                if (!$delete_result) {
+                    throw new Exception("Failed to delete redirect with reference_id: {$key}");
                 }
+                $deleted_count++;
                 continue;
             }
 
@@ -285,12 +292,16 @@ function dbre_save_settings() {
         $wpdb->query('COMMIT');
 
         wp_send_json_success([
-            'message' => 'Settings saved successfully!',
+            'message' => $deleted_count > 0 ? 
+                        "Successfully deleted {$deleted_count} redirects" : 
+                        'Settings saved successfully!',
             'type' => 'success',
-            'entries' => $saved_entries
+            'entries' => $saved_entries,
+            'deleted_count' => $deleted_count
         ]);
     } catch (Exception $e) {
         $wpdb->query('ROLLBACK');
+        error_log("Error in dbre_save_settings: " . $e->getMessage());
         wp_send_json_error('Save failed: ' . $e->getMessage());
     }
 }
@@ -412,6 +423,24 @@ add_action('rest_api_init', function () {
             'reference_id' => array(
                 'default' => '',
                 'sanitize_callback' => 'sanitize_text_field',
+            ),
+        ),
+    ));
+
+    // Add this to the rest_api_init action
+    register_rest_route('device-redirect/v1', '/delete', array(
+        'methods' => 'POST',
+        'callback' => 'dbre_handle_delete',
+        'permission_callback' => function() {
+            return current_user_can('manage_options');
+        },
+        'args' => array(
+            'reference_ids' => array(
+                'required' => true,
+                'type' => 'array',
+                'items' => array(
+                    'type' => 'string'
+                ),
             ),
         ),
     ));
@@ -707,16 +736,6 @@ function dbre_save_redirect($data) {
     }
 }
 
-function dbre_delete_redirect($id) {
-    global $wpdb;
-    
-    return $wpdb->delete(
-        dbre_get_table_name(),
-        ['id' => $id],
-        ['%d']
-    );
-}
-
 // Add the bulk action handler
 function dbre_handle_bulk_action($request) {
     global $wpdb;
@@ -835,12 +854,19 @@ function dbre_get_redirects_paginated($request) {
     $type = $request->get_param('type');
     $search = $request->get_param('search');
     $reference_id = $request->get_param('reference_id');
+    $id = $request->get_param('id');
     
     $offset = ($page - 1) * $per_page;
     
     // Build query
     $where_clauses = array('1=1');
     $where_values = array();
+    
+    // Add ID check
+    if ($id) {
+        $where_clauses[] = 'id = %d';
+        $where_values[] = $id;
+    }
     
     // Make type check more explicit
     if ($type && $type !== 'all') {
@@ -905,4 +931,58 @@ function dbre_get_redirects_paginated($request) {
         'total' => $total_items,
         'pages' => $total_pages
     ], 200);
+}
+
+// Add this function to properly handle deletion
+function dbre_delete_redirect($reference_id) {
+    global $wpdb;
+    
+    // Delete the redirect using reference_id
+    $result = $wpdb->delete(
+        dbre_get_table_name(),
+        ['reference_id' => $reference_id],
+        ['%s']
+    );
+
+    // Log deletion attempt for debugging
+    error_log("Attempting to delete redirect with reference_id: {$reference_id}");
+    error_log("Delete result: " . var_export($result, true));
+    error_log("Last SQL query: {$wpdb->last_query}");
+
+    return $result !== false;
+}
+
+// Add this function to handle delete requests
+function dbre_handle_delete($request) {
+    global $wpdb;
+    $reference_ids = $request->get_param('reference_ids');
+    
+    $wpdb->query('START TRANSACTION');
+    
+    try {
+        $deleted_count = 0;
+        foreach ($reference_ids as $reference_id) {
+            $result = dbre_delete_redirect($reference_id);
+            if ($result) {
+                $deleted_count++;
+            }
+        }
+        
+        if ($deleted_count === count($reference_ids)) {
+            $wpdb->query('COMMIT');
+            return new WP_REST_Response([
+                'success' => true,
+                'message' => sprintf('%d redirect(s) deleted successfully', $deleted_count)
+            ], 200);
+        } else {
+            throw new Exception('Some redirects could not be deleted');
+        }
+    } catch (Exception $e) {
+        $wpdb->query('ROLLBACK');
+        return new WP_Error(
+            'delete_failed',
+            $e->getMessage(),
+            array('status' => 500)
+        );
+    }
 }

@@ -43,8 +43,12 @@ const DeviceRedirectSettings = () => {
 
   // Load initial data
   useEffect(() => {
+    // Clear selections when changing pages
+    setSelectedItems([]);
+    setSelectAll(false);
+    
     loadRedirects();
-  }, [currentPage, perPage]);
+  }, [currentPage, perPage, typeFilter]);
 
   const loadRedirects = async () => {
     try {
@@ -71,6 +75,14 @@ const DeviceRedirectSettings = () => {
       setRedirects(data.items);
       setTotalPages(data.pages);
       setTotalItems(data.total);
+
+      // Update selectAll based on whether all visible items are selected
+      if (data.items.length > 0) {
+        const allCurrentItemsSelected = data.items.every(item => 
+          selectedItems.includes(item.id)
+        );
+        setSelectAll(allCurrentItemsSelected);
+      }
     } catch (error) {
       setNotification({
         message: `Error loading redirects: ${error.message}`,
@@ -123,25 +135,23 @@ const handleSlugRedirectChange = (slug, field, value) => {
   const removeRedirect = async (redirect) => {
     if (window.confirm('Are you sure you want to remove this redirect?')) {
         try {
-            // Create settings object with null value to remove the redirect
-            const settings = {
-                [redirect.id]: null
-            };
-
-            const formData = new FormData();
-            formData.append('action', 'save_device_redirect_settings');
-            formData.append('nonce', deviceRedirectData.nonce);
-            formData.append('settings', JSON.stringify(settings));
-            
-            const response = await fetch(deviceRedirectData.ajaxUrl, {
-                method: 'POST',
-                body: formData
-            });
+            const response = await fetch(
+                `${deviceRedirectData.restUrl}device-redirect/v1/delete`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-WP-Nonce': deviceRedirectData.restNonce
+                    },
+                    body: JSON.stringify({
+                        reference_ids: [redirect.reference_id]
+                    })
+                }
+            );
             
             const data = await response.json();
             
-            if (data.success) {
-                // Reload the current page of redirects
+            if (response.ok) {
                 await loadRedirects();
                 
                 setNotification({
@@ -153,7 +163,7 @@ const handleSlugRedirectChange = (slug, field, value) => {
                     setNotification(null);
                 }, 5000);
             } else {
-                throw new Error(data.data || 'Remove failed');
+                throw new Error(data.message || 'Remove failed');
             }
         } catch (error) {
             setNotification({
@@ -767,9 +777,14 @@ const handleSaveEdit = async (redirect) => {
 const handleSelectAll = (e) => {
   setSelectAll(e.target.checked);
   if (e.target.checked) {
-    setSelectedItems(getAllRedirects().map(redirect => redirect.id));
+    // Add only current page items that aren't already selected
+    const currentPageIds = redirects.map(redirect => redirect.id);
+    const newSelectedItems = [...new Set([...selectedItems, ...currentPageIds])];
+    setSelectedItems(newSelectedItems);
   } else {
-    setSelectedItems([]);
+    // Remove only current page items from selection
+    const currentPageIds = redirects.map(redirect => redirect.id);
+    setSelectedItems(prev => prev.filter(id => !currentPageIds.includes(id)));
   }
 };
 
@@ -784,96 +799,124 @@ const handleSelectItem = (id) => {
 };
 
 const handleBulkAction = async (action) => {
-  if (!selectedItems.length) {
-    setNotification({
-      message: 'Please select items to perform bulk action',
-      type: 'error'
-    });
-    return;
-  }
-
-  let confirmMessage = '';
-  switch(action) {
-    case 'delete':
-      confirmMessage = 'Are you sure you want to delete all selected redirects?';
-      break;
-    case 'enable':
-      confirmMessage = 'Are you sure you want to enable all selected redirects?';
-      break;
-    case 'disable':
-      confirmMessage = 'Are you sure you want to disable all selected redirects?';
-      break;
-    default:
-      return;
-  }
-
-  if (!window.confirm(confirmMessage)) {
-    return;
-  }
-
-  try {
-    const settings = {};
-    
-    // Get selected redirects
-    const selectedRedirects = redirects.filter(r => selectedItems.includes(r.id));
-    
-    if (action === 'delete') {
-      // For delete, we'll send empty settings to remove the redirects
-      selectedRedirects.forEach(redirect => {
-        settings[redirect.reference_id] = null;
-      });
-    } else {
-      // For enable/disable, update the enabled status
-      selectedRedirects.forEach(redirect => {
-        settings[redirect.reference_id] = {
-          ios_url: redirect.iosUrl,
-          android_url: redirect.androidUrl,
-          backup_url: redirect.backupUrl,
-          enabled: action === 'enable'
-        };
-      });
+    if (!selectedItems.length) {
+        setNotification({
+            message: 'Please select items to perform bulk action',
+            type: 'error'
+        });
+        return;
     }
 
-    const formData = new FormData();
-    formData.append('action', 'save_device_redirect_settings');
-    formData.append('nonce', deviceRedirectData.nonce);
-    formData.append('settings', JSON.stringify(settings));
-    
-    const response = await fetch(deviceRedirectData.ajaxUrl, {
-      method: 'POST',
-      body: formData
-    });
-    
-    const data = await response.json();
-    
-    if (data.success) {
-      // Reset selections
-      setSelectedItems([]);
-      setSelectAll(false);
-
-      // Reload the current page
-      await loadRedirects();
-
-      const actionText = action === 'delete' ? 'deleted' : 
-                        action === 'enable' ? 'enabled' : 'disabled';
-      
-      setNotification({
-        message: `Selected redirects ${actionText} successfully!`,
-        type: 'success'
-      });
-      
-      setTimeout(() => {
-        setNotification(null);
-      }, 5000);
-    } else {
-      throw new Error(data.data || 'Save failed');
+    let confirmMessage = '';
+    switch(action) {
+        case 'delete':
+            confirmMessage = 'Are you sure you want to delete all selected redirects?';
+            break;
+        case 'enable':
+            confirmMessage = 'Are you sure you want to enable all selected redirects?';
+            break;
+        case 'disable':
+            confirmMessage = 'Are you sure you want to disable all selected redirects?';
+            break;
+        default:
+            return;
     }
-  } catch (error) {
-    setNotification({
-      message: `Error performing bulk action: ${error.message}`,
-      type: 'error'
-    });
-  }
+
+    if (!window.confirm(confirmMessage)) {
+        return;
+    }
+
+    try {
+        // Get the selected redirects from current page
+        const selectedRedirects = redirects.filter(r => selectedItems.includes(r.id));
+        
+        if (action === 'delete') {
+            // Use the new delete endpoint for bulk delete
+            const response = await fetch(
+                `${deviceRedirectData.restUrl}device-redirect/v1/delete`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-WP-Nonce': deviceRedirectData.restNonce
+                    },
+                    body: JSON.stringify({
+                        reference_ids: selectedRedirects.map(r => r.reference_id)
+                    })
+                }
+            );
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.message || 'Delete failed');
+            }
+
+            // Add these lines for delete success case
+            setSelectedItems([]);
+            setSelectAll(false);
+            await loadRedirects();
+
+            setNotification({
+                message: `${selectedRedirects.length} redirects deleted successfully!`,
+                type: 'success'
+            });
+            
+            setTimeout(() => {
+                setNotification(null);
+            }, 5000);
+        } else {
+            // Existing code for enable/disable actions
+            const settings = {};
+            selectedRedirects.forEach(redirect => {
+                settings[redirect.reference_id] = {
+                    ios_url: redirect.iosUrl,
+                    android_url: redirect.androidUrl,
+                    backup_url: redirect.backupUrl,
+                    enabled: action === 'enable'
+                };
+            });
+
+            const formData = new FormData();
+            formData.append('action', 'save_device_redirect_settings');
+            formData.append('nonce', deviceRedirectData.nonce);
+            formData.append('settings', JSON.stringify(settings));
+            
+            const response = await fetch(deviceRedirectData.ajaxUrl, {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Reset selections and reload
+                setSelectedItems([]);
+                setSelectAll(false);
+                await loadRedirects();
+
+                const actionText = action === 'delete' ? 'deleted' : 
+                                 action === 'enable' ? 'enabled' : 'disabled';
+                
+                setNotification({
+                    message: `${selectedRedirects.length} redirects ${actionText} successfully!`,
+                    type: 'success'
+                });
+                
+                setTimeout(() => {
+                    setNotification(null);
+                }, 5000);
+            } else {
+                throw new Error(data.data || 'Save failed');
+            }
+        }
+    } catch (error) {
+        console.error('Bulk action error:', error);
+        setNotification({
+            message: `Error performing bulk action: ${error.message}`,
+            type: 'error'
+        });
+    }
 };
 
 // Update the validation for new redirects
@@ -942,13 +985,6 @@ const resetAndReload = async () => {
         setLoading(false);
     }
 };
-
-// Add a separate effect for typeFilter changes
-useEffect(() => {
-    if (typeFilter) {
-        loadRedirects();
-    }
-}, [typeFilter]);
 
   return (
     <div className="wrap">
