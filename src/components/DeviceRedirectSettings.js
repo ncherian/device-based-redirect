@@ -34,51 +34,51 @@ const DeviceRedirectSettings = () => {
       backupUrl: ''
     });
     const [formNotification, setFormNotification] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [perPage, setPerPage] = useState(10);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+    const [redirects, setRedirects] = useState([]);
+    const [loading, setLoading] = useState(true);
 
   // Load initial data
   useEffect(() => {
-    const loadSavedSettings = () => {
-        const savedSettings = deviceRedirectData.settings || {};
-        const pages = [];
-        const slugs = [];
-        
-        Object.entries(savedSettings).forEach(([key, value]) => {
-            if (Number.isInteger(parseInt(key))) {
-                pages.push({
-                    id: key,
-                    title: deviceRedirectData.pages.find(p => p.value.toString() === key)?.label || '',
-                    iosUrl: value.ios_url || '',
-                    androidUrl: value.android_url || '',
-                    backupUrl: value.backup_url || '',
-                    enabled: Boolean(value.enabled)
-                });
-            } else {
-                slugs.push({
-                    slug: key,
-                    iosUrl: value.ios_url || '',
-                    androidUrl: value.android_url || '',
-                    backupUrl: value.backup_url || '',
-                    enabled: Boolean(value.enabled)
-                });
-            }
-        });
+    loadRedirects();
+  }, [currentPage, perPage, typeFilter]);
 
-        // Set both current and initial state
-        setPageRedirects(pages);
-        setSlugRedirects(slugs);
-        
-        debugSavedData();
-    };
+  const loadRedirects = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(
+        `${deviceRedirectData.restUrl}device-redirect/v1/redirects?` + 
+        new URLSearchParams({
+          page: currentPage,
+          per_page: perPage,
+          type: typeFilter,
+        }),
+        {
+          headers: {
+            'X-WP-Nonce': deviceRedirectData.restNonce
+          }
+        }
+      );
 
-    loadSavedSettings();
-  }, []);
+      if (!response.ok) {
+        throw new Error('Failed to load redirects');
+      }
 
-  const debugSavedData = () => {
-    console.group('Device Redirect Debug Info');
-    console.log('Loaded Settings:', deviceRedirectData.settings);
-    console.log('Current Page Redirects:', pageRedirects);
-    console.log('Current Slug Redirects:', slugRedirects);
-    console.groupEnd();
+      const data = await response.json();
+      setRedirects(data.items);
+      setTotalPages(data.pages);
+      setTotalItems(data.total);
+    } catch (error) {
+      setNotification({
+        message: `Error loading redirects: ${error.message}`,
+        type: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handlePageRedirectChange = (id, field, value) => {
@@ -120,41 +120,14 @@ const handleSlugRedirectChange = (slug, field, value) => {
   // };
 
 
-  const removePageRedirect = async (id) => {
+  const removeRedirect = async (redirect) => {
     if (window.confirm('Are you sure you want to remove this redirect?')) {
-        // First update the local state
-        const updatedPageRedirects = pageRedirects.filter(redirect => redirect.id !== id);
-        setPageRedirects(updatedPageRedirects);
-        
-        // Clear validation errors
-        const newValidationErrors = { ...urlValidationErrors };
-        delete newValidationErrors[`page-${id}-ios`];
-        delete newValidationErrors[`page-${id}-android`];
-        delete newValidationErrors[`page-${id}-backup`];
-        setUrlValidationErrors(newValidationErrors);
-
-        // Prepare and save settings
-        const settings = {};
-        
-        updatedPageRedirects.forEach(redirect => {
-            settings[redirect.id] = {
-                ios_url: redirect.iosUrl,
-                android_url: redirect.androidUrl,
-                backup_url: redirect.backupUrl,
-                enabled: redirect.enabled
-            };
-        });
-        
-        slugRedirects.forEach(redirect => {
-            settings[redirect.slug] = {
-                ios_url: redirect.iosUrl,
-                android_url: redirect.androidUrl,
-                backup_url: redirect.backupUrl,
-                enabled: redirect.enabled
-            };
-        });
-
         try {
+            // Create settings object with null value to remove the redirect
+            const settings = {
+                [redirect.id]: null
+            };
+
             const formData = new FormData();
             formData.append('action', 'save_device_redirect_settings');
             formData.append('nonce', deviceRedirectData.nonce);
@@ -168,6 +141,9 @@ const handleSlugRedirectChange = (slug, field, value) => {
             const data = await response.json();
             
             if (data.success) {
+                // Reload the current page of redirects
+                await loadRedirects();
+                
                 setNotification({
                     message: 'Redirect removed successfully!',
                     type: 'success'
@@ -177,15 +153,13 @@ const handleSlugRedirectChange = (slug, field, value) => {
                     setNotification(null);
                 }, 5000);
             } else {
-                throw new Error(data.data || 'Save failed');
+                throw new Error(data.data || 'Remove failed');
             }
         } catch (error) {
             setNotification({
                 message: `Error removing redirect: ${error.message}`,
                 type: 'error'
             });
-            // Revert the state if save failed
-            setPageRedirects(pageRedirects);
         }
     }
 };
@@ -726,81 +700,27 @@ const handleSaveEdit = async (redirect) => {
     delete newValidationErrors[`${redirect.type}-${redirect.id}-backup`];
   }
 
-  // Update validation errors state
   setUrlValidationErrors(newValidationErrors);
 
-  // If there are validation errors, don't proceed with save
   if (hasValidationErrors) {
     return;
-  }
-
-  const settings = {};
-  let updatedPageRedirects = [...pageRedirects];
-  let updatedSlugRedirects = [...slugRedirects];
-
-  // Prepare settings object
-  if (redirect.type === 'page') {
-    updatedPageRedirects = pageRedirects.map(r =>
-      r.id === redirect.id ? {
-        ...r,
-        iosUrl: editedValues.iosUrl,
-        androidUrl: editedValues.androidUrl,
-        backupUrl: editedValues.backupUrl
-      } : r
-    );
-    setPageRedirects(updatedPageRedirects);
-    
-    updatedPageRedirects.forEach(r => {
-      settings[r.id] = {
-        ios_url: r.iosUrl,
-        android_url: r.androidUrl,
-        backup_url: r.backupUrl,
-        enabled: r.enabled
-      };
-    });
-    
-    slugRedirects.forEach(r => {
-      settings[r.slug] = {
-        ios_url: r.iosUrl,
-        android_url: r.androidUrl,
-        backup_url: r.backupUrl,
-        enabled: r.enabled
-      };
-    });
-  } else {
-    updatedSlugRedirects = slugRedirects.map(r =>
-      r.slug === redirect.id ? {
-        ...r,
-        iosUrl: editedValues.iosUrl,
-        androidUrl: editedValues.androidUrl,
-        backupUrl: editedValues.backupUrl
-      } : r
-    );
-    setSlugRedirects(updatedSlugRedirects);
-    
-    pageRedirects.forEach(r => {
-      settings[r.id] = {
-        ios_url: r.iosUrl,
-        android_url: r.androidUrl,
-        backup_url: r.backupUrl,
-        enabled: r.enabled
-      };
-    });
-    
-    updatedSlugRedirects.forEach(r => {
-      settings[r.slug] = {
-        ios_url: r.iosUrl,
-        android_url: r.androidUrl,
-        backup_url: r.backupUrl,
-        enabled: r.enabled
-      };
-    });
   }
 
   try {
     const formData = new FormData();
     formData.append('action', 'save_device_redirect_settings');
     formData.append('nonce', deviceRedirectData.nonce);
+    
+    // Create settings object with just the edited redirect
+    const settings = {
+      [redirect.reference_id]: {
+        ios_url: editedValues.iosUrl,
+        android_url: editedValues.androidUrl,
+        backup_url: editedValues.backupUrl,
+        enabled: redirect.enabled
+      }
+    };
+
     formData.append('settings', JSON.stringify(settings));
     
     const response = await fetch(deviceRedirectData.ajaxUrl, {
@@ -821,6 +741,9 @@ const handleSaveEdit = async (redirect) => {
         delete newValues[redirect.id];
         return newValues;
       });
+
+      // Reload the current page of redirects
+      await loadRedirects();
 
       setNotification({
         message: 'Changes saved successfully!',
@@ -888,42 +811,29 @@ const handleBulkAction = async (action) => {
     return;
   }
 
-  const settings = {};
-  let updatedPageRedirects = [...pageRedirects];
-  let updatedSlugRedirects = [...slugRedirects];
-
-  if (action === 'delete') {
-    updatedPageRedirects = pageRedirects.filter(r => !selectedItems.includes(r.id));
-    updatedSlugRedirects = slugRedirects.filter(r => !selectedItems.includes(r.slug));
-  } else {
-    updatedPageRedirects = pageRedirects.map(r => 
-      selectedItems.includes(r.id) ? { ...r, enabled: action === 'enable' } : r
-    );
-    updatedSlugRedirects = slugRedirects.map(r => 
-      selectedItems.includes(r.slug) ? { ...r, enabled: action === 'enable' } : r
-    );
-  }
-
-  // Prepare settings object
-  updatedPageRedirects.forEach(r => {
-    settings[r.id] = {
-      ios_url: r.iosUrl,
-      android_url: r.androidUrl,
-      backup_url: r.backupUrl,
-      enabled: r.enabled
-    };
-  });
-
-  updatedSlugRedirects.forEach(r => {
-    settings[r.slug] = {
-      ios_url: r.iosUrl,
-      android_url: r.androidUrl,
-      backup_url: r.backupUrl,
-      enabled: r.enabled
-    };
-  });
-
   try {
+    const settings = {};
+    
+    // Get selected redirects
+    const selectedRedirects = redirects.filter(r => selectedItems.includes(r.id));
+    
+    if (action === 'delete') {
+      // For delete, we'll send empty settings to remove the redirects
+      selectedRedirects.forEach(redirect => {
+        settings[redirect.reference_id] = null;
+      });
+    } else {
+      // For enable/disable, update the enabled status
+      selectedRedirects.forEach(redirect => {
+        settings[redirect.reference_id] = {
+          ios_url: redirect.iosUrl,
+          android_url: redirect.androidUrl,
+          backup_url: redirect.backupUrl,
+          enabled: action === 'enable'
+        };
+      });
+    }
+
     const formData = new FormData();
     formData.append('action', 'save_device_redirect_settings');
     formData.append('nonce', deviceRedirectData.nonce);
@@ -937,10 +847,12 @@ const handleBulkAction = async (action) => {
     const data = await response.json();
     
     if (data.success) {
-      setPageRedirects(updatedPageRedirects);
-      setSlugRedirects(updatedSlugRedirects);
+      // Reset selections
       setSelectedItems([]);
       setSelectAll(false);
+
+      // Reload the current page
+      await loadRedirects();
 
       const actionText = action === 'delete' ? 'deleted' : 
                         action === 'enable' ? 'enabled' : 'disabled';
@@ -1319,7 +1231,13 @@ const validateNewUrls = () => {
                 </tr>
               </thead>
               <tbody>
-                {getAllRedirects().map(redirect => (
+                {loading ? (
+                    <tr>
+                        <td colSpan="5" className="loading-row">
+                            Loading...
+                        </td>
+                    </tr>
+                ) : redirects.map(redirect => (
                   <tr key={redirect.id}>
                     <th scope="row" className="check-column">
                       <input
@@ -1534,10 +1452,7 @@ const validateNewUrls = () => {
                             </span>
                             <span className="remove">
                               <button
-                                onClick={() => redirect.type === 'page' ? 
-                                  removePageRedirect(redirect.id) : 
-                                  removeSlugRedirect(redirect.id)
-                                }
+                                onClick={() => removeRedirect(redirect)}
                                 className="button-link"
                               >
                                 Remove
@@ -1551,61 +1466,16 @@ const validateNewUrls = () => {
                       <ToggleSwitch
                         enabled={redirect.enabled}
                         onChange={async (checked) => {
-                          let updatedPageRedirects = [...pageRedirects];
-                          let updatedSlugRedirects = [...slugRedirects];
-                          const settings = {};
-
-                          if (redirect.type === 'page') {
-                            updatedPageRedirects = pageRedirects.map(r =>
-                              r.id === redirect.id ? { ...r, enabled: checked } : r
-                            );
-                            setPageRedirects(updatedPageRedirects);
-                            
-                            // Prepare settings
-                            updatedPageRedirects.forEach(r => {
-                              settings[r.id] = {
-                                ios_url: r.iosUrl,
-                                android_url: r.androidUrl,
-                                backup_url: r.backupUrl,
-                                enabled: r.enabled
-                              };
-                            });
-                            
-                            slugRedirects.forEach(r => {
-                              settings[r.slug] = {
-                                ios_url: r.iosUrl,
-                                android_url: r.androidUrl,
-                                backup_url: r.backupUrl,
-                                enabled: r.enabled
-                              };
-                            });
-                          } else {
-                            updatedSlugRedirects = slugRedirects.map(r =>
-                              r.slug === redirect.id ? { ...r, enabled: checked } : r
-                            );
-                            setSlugRedirects(updatedSlugRedirects);
-                            
-                            // Prepare settings
-                            pageRedirects.forEach(r => {
-                              settings[r.id] = {
-                                ios_url: r.iosUrl,
-                                android_url: r.androidUrl,
-                                backup_url: r.backupUrl,
-                                enabled: r.enabled
-                              };
-                            });
-                            
-                            updatedSlugRedirects.forEach(r => {
-                              settings[r.slug] = {
-                                ios_url: r.iosUrl,
-                                android_url: r.androidUrl,
-                                backup_url: r.backupUrl,
-                                enabled: r.enabled
-                              };
-                            });
-                          }
-
                           try {
+                            const settings = {
+                              [redirect.reference_id]: {
+                                ios_url: redirect.iosUrl,
+                                android_url: redirect.androidUrl,
+                                backup_url: redirect.backupUrl,
+                                enabled: checked
+                              }
+                            };
+
                             const formData = new FormData();
                             formData.append('action', 'save_device_redirect_settings');
                             formData.append('nonce', deviceRedirectData.nonce);
@@ -1619,6 +1489,9 @@ const validateNewUrls = () => {
                             const data = await response.json();
                             
                             if (data.success) {
+                              // Reload the current page to get updated data
+                              await loadRedirects();
+
                               setNotification({
                                 message: `Redirect ${checked ? 'enabled' : 'disabled'} successfully!`,
                                 type: 'success'
@@ -1635,12 +1508,7 @@ const validateNewUrls = () => {
                               message: `Error updating status: ${error.message}`,
                               type: 'error'
                             });
-                            // Revert the state if save failed
-                            if (redirect.type === 'page') {
-                              setPageRedirects(pageRedirects);
-                            } else {
-                              setSlugRedirects(slugRedirects);
-                            }
+                            // No need to revert state manually as we're using loadRedirects
                           }
                         }}
                         small={true}
@@ -1680,6 +1548,46 @@ const validateNewUrls = () => {
                   </span>
                 </div>
               )}
+              <div className="tablenav-pages">
+                <span className="displaying-num">
+                  {totalItems} items
+                </span>
+                <span className="pagination-links">
+                  <button
+                    className="first-page button"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                  >
+                    «
+                  </button>
+                  <button
+                    className="prev-page button"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    ‹
+                  </button>
+                  <span className="paging-input">
+                    <span className="tablenav-paging-text">
+                      {currentPage} of <span className="total-pages">{totalPages}</span>
+                    </span>
+                  </span>
+                  <button
+                    className="next-page button"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    ›
+                  </button>
+                  <button
+                    className="last-page button"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                  >
+                    »
+                  </button>
+                </span>
+              </div>
             </div>
         </div>
       </div>
