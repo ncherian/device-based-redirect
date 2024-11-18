@@ -1351,7 +1351,7 @@ const validateNewUrls = () => {
                         <>
                           <div className="url-fields-container">
                             <div className="url-field">
-                              <label>iOS URL:</label>
+                              <label>iOS:</label>
                               <div className="url-input-container">
                                 <input
                                   type="url"
@@ -1383,7 +1383,7 @@ const validateNewUrls = () => {
                             </div>
                             
                             <div className="url-field">
-                              <label>Android URL:</label>
+                              <label>Android:</label>
                               <div className="url-input-container">
                                 <input
                                   type="url"
@@ -1415,7 +1415,7 @@ const validateNewUrls = () => {
                             </div>
 
                             <div className="url-field">
-                              <label>Other Devices URL:</label>
+                              <label>Other Devices:</label>
                               <div className="url-input-container">
                                 <input
                                   type="url"
@@ -1465,30 +1465,58 @@ const validateNewUrls = () => {
                         <>
                           <div className="url-display-container">
                             <div className="url-display">
-                              <label>iOS URL:</label>
-                              <div className="url-value">
+                              <span className="url-icon" title="iOS URL">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M18.71 19.5C17.88 20.74 17 21.95 15.66 21.97C14.32 22 13.89 21.18 12.37 21.18C10.84 21.18 10.37 21.95 9.09997 22C7.78997 22.05 6.79997 20.68 5.95997 19.47C4.24997 17 2.93997 12.45 4.69997 9.39C5.56997 7.87 7.12997 6.91 8.81997 6.88C10.1 6.86 11.32 7.75 12.11 7.75C12.89 7.75 14.37 6.68 15.92 6.84C16.57 6.87 18.39 7.1 19.56 8.82C19.47 8.88 17.39 10.1 17.41 12.63C17.44 15.65 20.06 16.66 20.09 16.67C20.06 16.74 19.67 18.11 18.71 19.5ZM13 3.5C13.73 2.67 14.94 2.04 15.94 2C16.07 3.17 15.6 4.35 14.9 5.19C14.21 6.04 13.07 6.7 11.95 6.61C11.8 5.46 12.36 4.26 13 3.5Z"/>
+                                </svg>
+                              </span>
+                              <div className="url-value single-line">
                                 {redirect.iosUrl ? (
-                                  <a href={redirect.iosUrl} target="_blank" rel="noopener noreferrer">
+                                  <a 
+                                    href={redirect.iosUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    title={redirect.iosUrl}
+                                  >
                                     {redirect.iosUrl}
                                   </a>
                                 ) : '—'}
                               </div>
                             </div>
                             <div className="url-display">
-                              <label>Android URL:</label>
-                              <div className="url-value">
+                              <span className="url-icon" title="Android URL">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M6 18c0 .55.45 1 1 1h1v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h2v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h1c.55 0 1-.45 1-1V8H6v10zM3.5 8C2.67 8 2 8.67 2 9.5v7c0 .83.67 1.5 1.5 1.5S5 17.33 5 16.5v-7C5 8.67 4.33 8 3.5 8zm17 0c-.83 0-1.5.67-1.5 1.5v7c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-7c0-.83-.67-1.5-1.5-1.5zm-4.97-5.84l1.3-1.3c.2-.2.2-.51 0-.71-.2-.2-.51-.2-.71 0l-1.48 1.48C13.85 1.23 12.95 1 12 1c-.96 0-1.86.23-2.66.63L7.85.15c-.2-.2-.51-.2-.71 0-.2.2-.2.51 0 .71l1.31 1.31C6.97 3.26 6 5.01 6 7h12c0-1.99-.97-3.75-2.47-4.84zM10 5H9V4h1v1zm5 0h-1V4h1v1z"/>
+                                </svg>
+                              </span>
+                              <div className="url-value single-line">
                                 {redirect.androidUrl ? (
-                                  <a href={redirect.androidUrl} target="_blank" rel="noopener noreferrer">
+                                  <a 
+                                    href={redirect.androidUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    title={redirect.androidUrl}
+                                  >
                                     {redirect.androidUrl}
                                   </a>
                                 ) : '—'}
                               </div>
                             </div>
                             <div className="url-display">
-                              <label>Other Devices URL:</label>
-                              <div className="url-value">
+                              <span className="url-icon" title="Other Devices URL">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M20 4H4C2.89543 4 2 4.89543 2 6V16C2 17.1046 2.89543 18 4 18H20C21.1046 18 22 17.1046 22 16V6C22 4.89543 21.1046 4 20 4Z"/>
+                                  <path d="M15 19C15 19.5523 12.5 20 12 20C11.5 20 9 19.5523 9 19H15Z"/>
+                                </svg>
+                              </span>
+                              <div className="url-value single-line">
                                 {redirect.backupUrl ? (
-                                  <a href={redirect.backupUrl} target="_blank" rel="noopener noreferrer">
+                                  <a 
+                                    href={redirect.backupUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    title={redirect.backupUrl}
+                                  >
                                     {redirect.backupUrl}
                                   </a>
                                 ) : '—'}

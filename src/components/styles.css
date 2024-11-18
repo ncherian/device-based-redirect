@@ -467,31 +467,69 @@
 .url-display-container {
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 8px;
     width: 100%;
 }
 
 .url-display {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
+    align-items: center;
+    margin-bottom: 0;
 }
 
-.url-display label {
-    font-weight: 500;
+.url-icon {
+    min-width: 24px;
+    margin-right: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Platform-specific colors */
+.url-icon[title="iOS URL"],
+.url-icon[title="Android URL"],
+.url-icon[title="Other Devices URL"] {
     color: #50575e;
-    font-size: 13px;
 }
 
-.url-value {
-    padding: 8px;
+.url-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* Remove the old dashicons styles */
+.url-icon::before {
+    display: none;
+}
+
+.url-display .url-value.single-line {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     background: #f0f0f1;
+    padding: 6px 8px;
     border-radius: 4px;
-    color: #50575e;
+}
+
+.url-display .url-value.single-line a {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-decoration: none;
+    color: #2271b1;
     font-family: monospace;
-    word-break: break-all;
-    width: 100%;
-    box-sizing: border-box;
+}
+
+.url-display .url-value.single-line a:hover {
+    text-decoration: underline;
+    color: #135e96;
+}
+
+/* Remove the old label styles */
+.url-display label {
+    display: none;
 }
 
 .row-actions span.edit {
