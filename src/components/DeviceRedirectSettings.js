@@ -44,7 +44,7 @@ const DeviceRedirectSettings = () => {
   // Load initial data
   useEffect(() => {
     loadRedirects();
-  }, [currentPage, perPage, typeFilter]);
+  }, [currentPage, perPage]);
 
   const loadRedirects = async () => {
     try {
@@ -172,55 +172,56 @@ const handleSlugRedirectChange = (slug, field, value) => {
         return;
     }
     
-    // 2. Check if page already exists
-    if (pageRedirects.some(redirect => redirect.id === selectedPage)) {
-        setError({ type: 'page', message: 'This page has already been added!' });
-        return;
-    }
-
-    // 3. Then validate URLs
-    const urlErrors = validateNewUrls();
-    if (Object.keys(urlErrors).length > 0) {
-        setUrlValidationErrors(urlErrors);
-        return;
-    }
-
-    const pageTitle = deviceRedirectData.pages.find(
-        p => p.value.toString() === selectedPage.toString()
-    )?.label || '';
-
-    const newRedirect = {
-        id: selectedPage,
-        title: pageTitle,
-        iosUrl: newRedirectUrls.iosUrl,
-        androidUrl: newRedirectUrls.androidUrl,
-        backupUrl: newRedirectUrls.backupUrl,
-        enabled: true
-    };
-
-    const updatedPageRedirects = [...pageRedirects, newRedirect];
-
-    // Prepare settings for save
-    const settings = {};
-    updatedPageRedirects.forEach(redirect => {
-        settings[redirect.id] = {
-            ios_url: redirect.iosUrl,
-            android_url: redirect.androidUrl,
-            backup_url: redirect.backupUrl,
-            enabled: redirect.enabled
-        };
-    });
-    
-    slugRedirects.forEach(redirect => {
-        settings[redirect.slug] = {
-            ios_url: redirect.iosUrl,
-            android_url: redirect.androidUrl,
-            backup_url: redirect.backupUrl,
-            enabled: redirect.enabled
-        };
-    });
-
     try {
+        // 2. Check if page already exists by making an API call
+        // Add all necessary parameters to ensure we get the correct result
+        const checkResponse = await fetch(
+            `${deviceRedirectData.restUrl}device-redirect/v1/redirects?` + 
+            new URLSearchParams({
+                page: 1,
+                per_page: 1,
+                type: 'page',  // Explicitly set type to 'page'
+                reference_id: selectedPage,
+                search: ''  // Explicitly set empty search
+            }),
+            {
+                headers: {
+                    'X-WP-Nonce': deviceRedirectData.restNonce
+                }
+            }
+        );
+
+        if (!checkResponse.ok) {
+            throw new Error('Failed to check existing redirect');
+        }
+
+        const checkData = await checkResponse.json();
+        
+        // Log the response for debugging
+        console.log('Check existing redirect response:', checkData);
+        
+        if (checkData.total > 0) {  // Changed from checking items length to total
+            setError({ type: 'page', message: 'This page already has a redirect!' });
+            return;
+        }
+
+        // 3. Then validate URLs
+        const urlErrors = validateNewUrls();
+        if (Object.keys(urlErrors).length > 0) {
+            setUrlValidationErrors(urlErrors);
+            return;
+        }
+
+        // 4. Save the new redirect
+        const settings = {
+            [selectedPage]: {
+                ios_url: newRedirectUrls.iosUrl,
+                android_url: newRedirectUrls.androidUrl,
+                backup_url: newRedirectUrls.backupUrl,
+                enabled: true
+            }
+        };
+
         const formData = new FormData();
         formData.append('action', 'save_device_redirect_settings');
         formData.append('nonce', deviceRedirectData.nonce);
@@ -234,18 +235,19 @@ const handleSlugRedirectChange = (slug, field, value) => {
         const data = await response.json();
         
         if (data.success) {
-            setPageRedirects(updatedPageRedirects);
+            // Reset form
             setSelectedPage('');
             setError({ type: '', message: '' });
             setNewRedirectUrls({ iosUrl: '', androidUrl: '', backupUrl: '' });
             
-            // Add form notification
+            // Use the reset function
+            await resetAndReload();
+            
             setFormNotification({
                 message: 'Page redirect added successfully!',
                 type: 'success'
             });
             
-            // Global notification
             setNotification({
                 message: 'Page redirect added successfully!',
                 type: 'success'
@@ -264,9 +266,6 @@ const handleSlugRedirectChange = (slug, field, value) => {
             type: 'error'
         });
     }
-
-    // Clear the form after successful save
-    setNewRedirectUrls({ iosUrl: '', androidUrl: '', backupUrl: '' });
 };
 
   
@@ -441,18 +440,19 @@ const removeSlugRedirect = async (slug) => {
         const data = await response.json();
         
         if (data.success) {
-            setSlugRedirects(updatedSlugRedirects);
+            // Reset form
             setNewSlug('');
             setError({ type: '', message: '' });
             setNewRedirectUrls({ iosUrl: '', androidUrl: '', backupUrl: '' });
             
-            // Add form notification
+            // Use the new reset function
+            await resetAndReload();
+            
             setFormNotification({
                 message: 'Custom URL redirect added successfully!',
                 type: 'success'
             });
             
-            // Global notification
             setNotification({
                 message: 'Custom URL redirect added successfully!',
                 type: 'success'
@@ -897,6 +897,58 @@ const validateNewUrls = () => {
   
   return errors;
 };
+
+// Add a new function to handle resetting and reloading
+const resetAndReload = async () => {
+    // First remove the typeFilter from useEffect dependencies
+    // to prevent double loading
+    const currentFilter = typeFilter;
+    setTypeFilter('all');
+    setCurrentPage(1);
+    
+    // Manually load with reset values
+    try {
+        setLoading(true);
+        const response = await fetch(
+            `${deviceRedirectData.restUrl}device-redirect/v1/redirects?` + 
+            new URLSearchParams({
+                page: 1,
+                per_page: perPage,
+                type: 'all',
+            }),
+            {
+                headers: {
+                    'X-WP-Nonce': deviceRedirectData.restNonce
+                }
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error('Failed to load redirects');
+        }
+
+        const data = await response.json();
+        setRedirects(data.items);
+        setTotalPages(data.pages);
+        setTotalItems(data.total);
+    } catch (error) {
+        setNotification({
+            message: `Error loading redirects: ${error.message}`,
+            type: 'error'
+        });
+        // Restore previous filter if load fails
+        setTypeFilter(currentFilter);
+    } finally {
+        setLoading(false);
+    }
+};
+
+// Add a separate effect for typeFilter changes
+useEffect(() => {
+    if (typeFilter) {
+        loadRedirects();
+    }
+}, [typeFilter]);
 
   return (
     <div className="wrap">

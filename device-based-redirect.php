@@ -409,6 +409,10 @@ add_action('rest_api_init', function () {
                 'default' => '',
                 'sanitize_callback' => 'sanitize_text_field',
             ),
+            'reference_id' => array(
+                'default' => '',
+                'sanitize_callback' => 'sanitize_text_field',
+            ),
         ),
     ));
 });
@@ -830,6 +834,7 @@ function dbre_get_redirects_paginated($request) {
     $per_page = $request->get_param('per_page');
     $type = $request->get_param('type');
     $search = $request->get_param('search');
+    $reference_id = $request->get_param('reference_id');
     
     $offset = ($page - 1) * $per_page;
     
@@ -837,12 +842,19 @@ function dbre_get_redirects_paginated($request) {
     $where_clauses = array('1=1');
     $where_values = array();
     
-    if ($type !== 'all') {
+    // Make type check more explicit
+    if ($type && $type !== 'all') {
         $where_clauses[] = 'type = %s';
         $where_values[] = $type;
     }
     
-    if (!empty($search)) {
+    // Make reference_id check more explicit
+    if ($reference_id !== '') {
+        $where_clauses[] = 'reference_id = %s';
+        $where_values[] = $reference_id;
+    }
+    
+    if ($search !== '') {
         $where_clauses[] = '(reference_id LIKE %s OR ios_url LIKE %s OR android_url LIKE %s OR backup_url LIKE %s)';
         $search_term = '%' . $wpdb->esc_like($search) . '%';
         $where_values = array_merge($where_values, array($search_term, $search_term, $search_term, $search_term));
@@ -850,27 +862,28 @@ function dbre_get_redirects_paginated($request) {
     
     // Get total count
     $count_query = "SELECT COUNT(*) FROM " . dbre_get_table_name() . " WHERE " . implode(' AND ', $where_clauses);
-    $total_items = $wpdb->get_var($wpdb->prepare($count_query, $where_values));
+    $total_items = (int)$wpdb->get_var($wpdb->prepare($count_query, $where_values));
     
-    // Get paginated results - Changed ORDER BY to updated_at DESC
+    // Get paginated results
     $query = "SELECT * FROM " . dbre_get_table_name() . " 
               WHERE " . implode(' AND ', $where_clauses) . "
-              ORDER BY created_at DESC LIMIT %d OFFSET %d";
+              ORDER BY created_at DESC 
+              LIMIT %d OFFSET %d";
     
     $prepared_values = array_merge($where_values, array($per_page, $offset));
     $results = $wpdb->get_results($wpdb->prepare($query, $prepared_values), ARRAY_A);
     
-    // Format results
+    // Format results for frontend
     $formatted_results = array_map(function($item) {
         $formatted = [
-            'id' => $item['id'],
+            'id' => (int)$item['id'],
             'type' => $item['type'],
             'reference_id' => $item['reference_id'],
             'iosUrl' => $item['ios_url'],
             'androidUrl' => $item['android_url'],
             'backupUrl' => $item['backup_url'],
             'enabled' => (bool)$item['enabled'],
-            'updatedAt' => $item['updated_at'] // Add updated_at to the formatted results
+            'updatedAt' => $item['updated_at']
         ];
 
         if ($item['type'] === 'page') {
@@ -883,11 +896,13 @@ function dbre_get_redirects_paginated($request) {
         }
 
         return $formatted;
-    }, $results);
-    
+    }, $results ?: []);
+
+    $total_pages = ceil($total_items / $per_page);
+
     return new WP_REST_Response([
         'items' => $formatted_results,
-        'total' => (int)$total_items,
-        'pages' => ceil($total_items / $per_page)
+        'total' => $total_items,
+        'pages' => $total_pages
     ], 200);
 }
