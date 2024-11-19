@@ -107,30 +107,6 @@ const handleSlugRedirectChange = (slug, field, value) => {
     setSlugRedirects(updated);
 };
 
-  // Function to validate a slug
-  // const validateSlug = async (slug) => {
-  //   try {
-  //     const response = await fetch(
-  //       `${deviceRedirectData.restUrl}device-redirect/v1/validate-slug?slug=${encodeURIComponent(slug)}`,
-  //       {
-  //         headers: {
-  //           'X-WP-Nonce': deviceRedirectData.restNonce
-  //         }
-  //       }
-  //     );
-      
-  //     if (!response.ok) {
-  //       const error = await response.json();
-  //       throw new Error(error.message);
-  //     }
-      
-  //     return true;
-  //   } catch (error) {
-  //     setError({ type: 'slug', message: error.message });
-  //     return false;
-  //   }
-  // };
-
 
   const removeRedirect = async (redirect) => {
     if (window.confirm('Are you sure you want to remove this redirect?')) {
@@ -225,6 +201,7 @@ const handleSlugRedirectChange = (slug, field, value) => {
         // 4. Save the new redirect
         const settings = {
             [selectedPage]: {
+                type: 'page',
                 ios_url: newRedirectUrls.iosUrl,
                 android_url: newRedirectUrls.androidUrl,
                 backup_url: newRedirectUrls.backupUrl,
@@ -291,76 +268,6 @@ const handleSlugRedirectChange = (slug, field, value) => {
     
     return patterns[type]?.test(url) ?? false;
   };
-
-const removeSlugRedirect = async (slug) => {
-    if (window.confirm('Are you sure you want to remove this redirect?')) {
-        // First update the local state
-        const updatedSlugRedirects = slugRedirects.filter(redirect => redirect.slug !== slug);
-        setSlugRedirects(updatedSlugRedirects);
-        
-        // Clear validation errors
-        const newValidationErrors = { ...urlValidationErrors };
-        delete newValidationErrors[`slug-${slug}-ios`];
-        delete newValidationErrors[`slug-${slug}-android`];
-        delete newValidationErrors[`slug-${slug}-backup`];
-        setUrlValidationErrors(newValidationErrors);
-
-        // Prepare and save settings
-        const settings = {};
-        
-        pageRedirects.forEach(redirect => {
-            settings[redirect.id] = {
-                ios_url: redirect.iosUrl,
-                android_url: redirect.androidUrl,
-                backup_url: redirect.backupUrl,
-                enabled: redirect.enabled
-            };
-        });
-        
-        updatedSlugRedirects.forEach(redirect => {
-            settings[redirect.slug] = {
-                ios_url: redirect.iosUrl,
-                android_url: redirect.androidUrl,
-                backup_url: redirect.backupUrl,
-                enabled: redirect.enabled
-            };
-        });
-
-        try {
-            const formData = new FormData();
-            formData.append('action', 'save_device_redirect_settings');
-            formData.append('nonce', deviceRedirectData.nonce);
-            formData.append('settings', JSON.stringify(settings));
-            
-            const response = await fetch(deviceRedirectData.ajaxUrl, {
-                method: 'POST',
-                body: formData
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                setNotification({
-                    message: 'Redirect removed successfully!',
-                    type: 'success'
-                });
-                
-                setTimeout(() => {
-                    setNotification(null);
-                }, 5000);
-            } else {
-                throw new Error(data.data || 'Save failed');
-            }
-        } catch (error) {
-            setNotification({
-                message: `Error removing redirect: ${error.message}`,
-                type: 'error'
-            });
-            // Revert the state if save failed
-            setSlugRedirects(slugRedirects);
-        }
-    }
-};
   
   const handleAddSlugRedirect = async () => {
     // 1. First check if slug is entered
@@ -421,6 +328,7 @@ const removeSlugRedirect = async (slug) => {
         const settings = {};
         pageRedirects.forEach(redirect => {
             settings[redirect.id] = {
+                type: 'custom',
                 ios_url: redirect.iosUrl,
                 android_url: redirect.androidUrl,
                 backup_url: redirect.backupUrl,
@@ -430,6 +338,7 @@ const removeSlugRedirect = async (slug) => {
         
         updatedSlugRedirects.forEach(redirect => {
             settings[redirect.slug] = {
+                type: 'custom',
                 ios_url: redirect.iosUrl,
                 android_url: redirect.androidUrl,
                 backup_url: redirect.backupUrl,
@@ -546,93 +455,6 @@ const getUrlErrorMessage = (type) => {
   return 'Please enter a valid URL (starting with http:// or https://)';
 };
 
-  const saveSettings = async () => {
-    setSaving(true);
-    
-    const settings = {};
-    
-    pageRedirects.forEach(redirect => {
-        settings[redirect.id] = {
-            ios_url: redirect.iosUrl,
-            android_url: redirect.androidUrl,
-            backup_url: redirect.backupUrl,
-            enabled: redirect.enabled
-        };
-    });
-    
-    slugRedirects.forEach(redirect => {
-        settings[redirect.slug] = {
-            ios_url: redirect.iosUrl,
-            android_url: redirect.androidUrl,
-            backup_url: redirect.backupUrl,
-            enabled: redirect.enabled
-        };
-    });
-    
-    try {
-        const formData = new FormData();
-        formData.append('action', 'save_device_redirect_settings');
-        formData.append('nonce', deviceRedirectData.nonce);
-        formData.append('settings', JSON.stringify(settings));
-        
-        const response = await fetch(deviceRedirectData.ajaxUrl, {
-            method: 'POST',
-            body: formData
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            setNotification({
-                message: data.data.message,
-                type: 'success'
-            });
-            
-            setTimeout(() => {
-                setNotification(null);
-            }, 5000);
-        } else {
-            throw new Error(data.data || 'Save failed');
-        }
-    } catch (error) {
-        setNotification({
-            message: `Error saving settings: ${error.message}`,
-            type: 'error'
-        });
-    } finally {
-        setSaving(false);
-    }
-};
-
-const getAllRedirects = () => {
-  const pageRedirectsWithType = pageRedirects.map(redirect => {
-    const page = deviceRedirectData.pages.find(p => p.value.toString() === redirect.id.toString());
-    const pageSlug = page?.slug || redirect.id;
-    
-    return {
-      ...redirect,
-      type: 'page',
-      displayTitle: redirect.title,  // Store the title separately
-      displayUrl: `${deviceRedirectData.homeUrl}/${pageSlug}`  // Use same URL format for both types
-    };
-  });
-  
-  const slugRedirectsWithType = slugRedirects.map(redirect => ({
-    ...redirect,
-    type: 'custom',
-    displayTitle: redirect.slug,  // Use slug as title
-    displayUrl: `${deviceRedirectData.homeUrl}/${redirect.slug}`,
-    id: redirect.slug
-  }));
-  
-  let allRedirects = [...pageRedirectsWithType, ...slugRedirectsWithType];
-  
-  if (typeFilter !== 'all') {
-    allRedirects = allRedirects.filter(redirect => redirect.type === typeFilter);
-  }
-  
-  return allRedirects;
-};
 
 const handleEditClick = (redirect) => {
   // First, check if any other redirect is being edited
@@ -724,6 +546,7 @@ const handleSaveEdit = async (redirect) => {
     // Create settings object with just the edited redirect
     const settings = {
       [redirect.reference_id]: {
+        type: redirect.type,
         ios_url: editedValues.iosUrl,
         android_url: editedValues.androidUrl,
         backup_url: editedValues.backupUrl,
@@ -870,6 +693,7 @@ const handleBulkAction = async (action) => {
             const settings = {};
             selectedRedirects.forEach(redirect => {
                 settings[redirect.reference_id] = {
+                    type: redirect.type,
                     ios_url: redirect.iosUrl,
                     android_url: redirect.androidUrl,
                     backup_url: redirect.backupUrl,
@@ -1557,6 +1381,7 @@ const resetAndReload = async () => {
                           try {
                             const settings = {
                               [redirect.reference_id]: {
+                                type: redirect.type,
                                 ios_url: redirect.iosUrl,
                                 android_url: redirect.androidUrl,
                                 backup_url: redirect.backupUrl,

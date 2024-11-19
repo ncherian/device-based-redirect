@@ -54,13 +54,13 @@ function dbre_activate() {
 }
 
 function dbre_deactivate() {
-    // Clear all caches
+    // Clear all Trasients
     $redirects = dbre_get_redirects();
     foreach ($redirects as $redirect) {
         if ($redirect['type'] === 'page') {
-            wp_cache_delete('dbre_redirect_' . $redirect['reference_id'], 'device_redirect');
+            delete_transient('dbre_redirect_' . $redirect['reference_id']);
         } else if ($redirect['type'] === 'custom') {
-            wp_cache_delete('dbre_custom_redirect_' . md5($redirect['reference_id']), 'device_redirect');
+            delete_transient('dbre_custom_redirect_' . md5($redirect['reference_id']));
         }
     }
 }
@@ -291,12 +291,12 @@ function dbre_save_settings() {
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
         $wpdb->query('COMMIT');
       
-        // Clear caches
+        // Clear Transients
         foreach ($settings as $key => $value) {
             if ($value['type'] === 'page') {
-                wp_cache_delete('dbre_redirect_' . $key, 'device_redirect');
+                delete_transient('dbre_redirect_' . $key);
             } else {
-                wp_cache_delete('dbre_custom_redirect_' . md5($key), 'device_redirect');
+                delete_transient('dbre_custom_redirect_' . md5($key));
             }
         }
 
@@ -321,13 +321,17 @@ function dbre_save_settings() {
 // ===============================================
 function dbre_redirect_logic() {
     try {
+        error_log('Starting dbre_redirect_logic');
         $current_page_id = get_the_ID();
-        $current_url = home_url(add_query_arg(NULL, NULL));
-        
+        error_log('Current Page ID: ' . $current_page_id);
+        $current_url = get_permalink($current_page_id);
+        error_log('Current URL: ' . $current_url);
+
         // Get cached redirect for this page
         $cache_key = 'dbre_redirect_' . $current_page_id;
-        $redirect = wp_cache_get($cache_key, 'device_redirect');
-        
+        $redirect = get_transient($cache_key);
+        error_log('Cache Result: ' . ($redirect ? 'Hit' : 'Miss'));
+
         if (false === $redirect) {
             global $wpdb;
             $table_name = esc_sql(dbre_get_table_name());
@@ -342,12 +346,19 @@ function dbre_redirect_logic() {
                 ),
                 ARRAY_A
             );
-            
-            // Cache for 1 hour
-            wp_cache_set($cache_key, $redirect, 'device_redirect', 3600);
+            error_log('DB Result: ' . print_r($redirect, true));
+
+            error_log('Cache key: ' . $cache_key);
+            error_log('Cache group: device_redirect');
+            error_log('Cache value before: ' . print_r(get_transient($cache_key), true));
+            set_transient($cache_key, $redirect, 3600);
+            error_log('Cache value after: ' . print_r(get_transient($cache_key), true));
         }
 
         if ($redirect && (!empty($redirect['ios_url']) || !empty($redirect['android_url']))) {
+            error_log('Found valid redirect, enqueueing script');
+            error_log('iOS URL: ' . $redirect['ios_url']);
+            error_log('Android URL: ' . $redirect['android_url']);
             // Enqueue the redirect script
             wp_enqueue_script(
                 'device-redirect-front',
@@ -368,6 +379,11 @@ function dbre_redirect_logic() {
                     'current' => esc_js($current_url)
                 )
             );
+            error_log('Script enqueued with config');
+
+        }else{
+            error_log('No valid redirect found or URLs empty');
+
         }
     } catch (Exception $e) {
         if (defined('WP_DEBUG') && WP_DEBUG) {
@@ -569,7 +585,7 @@ function dbre_handle_custom_slugs($wp) {
 
     // Try to get from cache first
     $cache_key = 'dbre_custom_redirect_' . md5($current_slug);
-    $redirect = wp_cache_get($cache_key, 'device_redirect');
+    $redirect = get_transient($cache_key);
     
     if (false === $redirect) {
         global $wpdb;
@@ -587,7 +603,7 @@ function dbre_handle_custom_slugs($wp) {
         );
         
         // Cache for 1 hour
-        wp_cache_set($cache_key, $redirect, 'device_redirect', 3600);
+        set_transient($cache_key, $redirect, 3600);
     }
 
     if ($redirect) {
@@ -694,7 +710,8 @@ function dbre_run_migration() {
     
     if (!empty($old_settings)) {
         foreach ($old_settings as $key => $value) {
-            $type = is_numeric($key) ? 'page' : 'custom';
+            $post = get_post($key);
+            $type = $post ? 'page' : 'custom';
             $reference_id = $key;
 
             // Insert into new table
@@ -813,6 +830,15 @@ function dbre_handle_bulk_action($request) {
 
     switch ($action) {
         case 'delete':
+            // Get redirects before deleting to clear their caches
+            $redirects = $wpdb->get_results(
+                $wpdb->prepare(
+                    "SELECT type, reference_id FROM `{$table_name}` 
+                    WHERE id IN (" . implode(',', array_fill(0, count($ids), '%d')) . ")",
+                    $ids
+                ),
+                ARRAY_A
+            );
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
             $result = $wpdb->query(
                 $wpdb->prepare(
@@ -821,11 +847,29 @@ function dbre_handle_bulk_action($request) {
                     $ids
                 )
             );
+            // Clear transients for deleted redirects
+            foreach ($redirects as $redirect) {
+                if ($redirect['type'] === 'page') {
+                    delete_transient('dbre_redirect_' . $redirect['reference_id']);
+                } else {
+                    delete_transient('dbre_custom_redirect_' . md5($redirect['reference_id']));
+                }
+            }
             $message = 'Redirects deleted successfully';
             break;
 
         case 'enable':
         case 'disable':
+            // Get redirects before updating to clear their caches
+            $redirects = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT type, reference_id FROM `{$table_name}` 
+                WHERE id IN (" . implode(',', array_fill(0, count($ids), '%d')) . ")",
+                $ids
+                ),
+                ARRAY_A
+            );
+
             $enabled = $action === 'enable' ? 1 : 0;
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
             $result = $wpdb->query(
@@ -836,6 +880,16 @@ function dbre_handle_bulk_action($request) {
                     array_merge([$enabled], $ids)
                 )
             );
+
+             // Clear transients for updated redirects
+             foreach ($redirects as $redirect) {
+                if ($redirect['type'] === 'page') {
+                    delete_transient('dbre_redirect_' . $redirect['reference_id']);
+                } else {
+                    delete_transient('dbre_custom_redirect_' . md5($redirect['reference_id']));
+                }
+            }
+
             $message = 'Redirects ' . $action . 'd successfully';
             break;
 
@@ -1033,11 +1087,11 @@ function dbre_handle_delete($request) {
 
             $result = dbre_delete_redirect($reference_id);
             if ($result) {
-                // Clear cache based on redirect type
+                // Clear transients based on redirect type
                 if ($redirect && $redirect['type'] === 'page') {
-                    wp_cache_delete('dbre_redirect_' . $reference_id, 'device_redirect');
+                    delete_transient('dbre_redirect_' . $reference_id);
                 } elseif ($redirect && $redirect['type'] === 'custom') {
-                    wp_cache_delete('dbre_custom_redirect_' . md5($reference_id), 'device_redirect');
+                    delete_transient('dbre_custom_redirect_' . md5($reference_id));
                 }
                 
                 $deleted_count++;
