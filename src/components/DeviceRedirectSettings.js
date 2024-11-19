@@ -18,7 +18,6 @@ const DeviceRedirectSettings = () => {
     const [selectedPage, setSelectedPage] = useState('');
     const [newSlug, setNewSlug] = useState('');
     const [error, setError] = useState({ type: '', message: '' });
-    const [saving, setSaving] = useState(false);
     const [notification, setNotification] = useState(null);
     const [urlValidationErrors, setUrlValidationErrors] = useState({});
     const [editingRedirects, setEditingRedirects] = useState({});
@@ -46,7 +45,6 @@ const DeviceRedirectSettings = () => {
     // Clear selections when changing pages
     setSelectedItems([]);
     setSelectAll(false);
-    
     loadRedirects();
   }, [currentPage, perPage, typeFilter]);
 
@@ -93,20 +91,6 @@ const DeviceRedirectSettings = () => {
     }
   };
 
-  const handlePageRedirectChange = (id, field, value) => {
-    const updated = pageRedirects.map(r =>
-        r.id === id ? { ...r, [field]: value } : r
-    );
-    setPageRedirects(updated);
-};
-
-const handleSlugRedirectChange = (slug, field, value) => {
-    const updated = slugRedirects.map(r =>
-        r.slug === slug ? { ...r, [field]: value } : r
-    );
-    setSlugRedirects(updated);
-};
-
 
   const removeRedirect = async (redirect) => {
     if (window.confirm('Are you sure you want to remove this redirect?')) {
@@ -120,7 +104,11 @@ const handleSlugRedirectChange = (slug, field, value) => {
                         'X-WP-Nonce': deviceRedirectData.restNonce
                     },
                     body: JSON.stringify({
-                        reference_ids: [redirect.reference_id]
+                        items: [{
+                            id: redirect.id,
+                            reference_id: redirect.reference_id,
+                            type: redirect.type
+                        }]
                     })
                 }
             );
@@ -129,7 +117,6 @@ const handleSlugRedirectChange = (slug, field, value) => {
             
             if (response.ok) {
                 await loadRedirects();
-                
                 setNotification({
                     message: 'Redirect removed successfully!',
                     type: 'success'
@@ -406,55 +393,6 @@ const handleSlugRedirectChange = (slug, field, value) => {
     setError({ type: '', message: '' });
   };
   
-  // const handleBackupUrlChange = (slug, value) => {
-  //   const updated = slugRedirects.map(r =>
-  //     r.slug === slug ? { ...r, backupUrl: value } : r
-  //   );
-  //   setSlugRedirects(updated);
-  // };
-  
- // Update the handleUrlChange function
- const handleUrlChange = (redirectType, id, type, value) => {
-  const isValid = validateUrl(value, type);
-  const errorKey = `${redirectType}-${id}-${type}`;
-  
-  if (value) {
-      setUrlValidationErrors(prev => ({
-          ...prev,
-          [errorKey]: isValid ? null : getUrlErrorMessage(type)
-      }));
-  } else {
-      setUrlValidationErrors(prev => {
-          const newErrors = { ...prev };
-          delete newErrors[errorKey];
-          return newErrors;
-      });
-  }
-
-  if (redirectType === 'page') {
-      handlePageRedirectChange(
-          id, 
-          type === 'ios' ? 'iosUrl' : 
-          type === 'android' ? 'androidUrl' : 
-          'backupUrl',
-          value
-      );
-  } else {
-      handleSlugRedirectChange(
-          id, 
-          type === 'ios' ? 'iosUrl' : 
-          type === 'android' ? 'androidUrl' : 
-          'backupUrl',
-          value
-      );
-  }
-};
-
-// Add helper function to get appropriate error messages
-const getUrlErrorMessage = (type) => {
-  return 'Please enter a valid URL (starting with http:// or https://)';
-};
-
 
 const handleEditClick = (redirect) => {
   // First, check if any other redirect is being edited
@@ -654,7 +592,6 @@ const handleBulkAction = async (action) => {
         const selectedRedirects = redirects.filter(r => selectedItems.includes(r.id));
         
         if (action === 'delete') {
-            // Use the new delete endpoint for bulk delete
             const response = await fetch(
                 `${deviceRedirectData.restUrl}device-redirect/v1/delete`,
                 {
@@ -664,7 +601,11 @@ const handleBulkAction = async (action) => {
                         'X-WP-Nonce': deviceRedirectData.restNonce
                     },
                     body: JSON.stringify({
-                        reference_ids: selectedRedirects.map(r => r.reference_id)
+                        items: selectedRedirects.map(r => ({
+                            id: r.id,
+                            reference_id: r.reference_id,
+                            type: r.type
+                        }))
                     })
                 }
             );
@@ -675,7 +616,6 @@ const handleBulkAction = async (action) => {
                 throw new Error(data.message || 'Delete failed');
             }
 
-            // Add these lines for delete success case
             setSelectedItems([]);
             setSelectAll(false);
             await loadRedirects();

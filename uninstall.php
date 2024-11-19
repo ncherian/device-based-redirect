@@ -15,6 +15,7 @@ $redirects_table = esc_sql($wpdb->prefix . 'dbre_redirects');
 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Intended schema change during plugin uninstallation
 $wpdb->query(
     $wpdb->prepare(
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Intended schema change during plugin uninstallation
         "DROP TABLE IF EXISTS %s",
         $redirects_table
     )

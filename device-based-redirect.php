@@ -163,28 +163,6 @@ function dbre_scripts($hook) {
         true
     );
 
-    // Get all redirects from the new DB structure
-    $redirects = dbre_get_redirects();
-    
-    // Format redirects for the frontend
-    $formatted_redirects = [];
-    foreach ($redirects as $redirect) {
-        $key = $redirect['reference_id'];
-        $formatted_redirects[$key] = [
-            'id' => (int)$redirect['id'],
-            'type' => $redirect['type'],
-            'reference_id' => $redirect['reference_id'],
-            'iosUrl' => $redirect['ios_url'],
-            'androidUrl' => $redirect['android_url'],
-            'backupUrl' => $redirect['backup_url'],
-            'enabled' => (bool)$redirect['enabled'],
-            'created_at' => $redirect['created_at'],
-            'updated_at' => $redirect['updated_at'],
-            'order' => (int)$redirect['order']
-        ];
-    }
-
-    // Get all pages for the dropdown
     $all_pages = get_pages();
     $formatted_pages = array_map(function($page) {
         return [
@@ -201,7 +179,6 @@ function dbre_scripts($hook) {
         'restNonce' => wp_create_nonce('wp_rest'),
         'homeUrl' => home_url(),
         'pages' => $formatted_pages,
-        'settings' => $formatted_redirects,
         'pluginUrl' => plugins_url('', __FILE__),
     ]);
 }
@@ -408,29 +385,6 @@ add_action('rest_api_init', function () {
         ),
     ));
 
-    // New bulk operations endpoint
-    register_rest_route('device-redirect/v1', '/bulk-action', array(
-        'methods' => 'POST',
-        'callback' => 'dbre_handle_bulk_action',
-        'permission_callback' => function() {
-            return current_user_can('manage_options');
-        },
-        'args' => array(
-            'action' => array(
-                'required' => true,
-                'type' => 'string',
-                'enum' => ['delete', 'enable', 'disable'],
-            ),
-            'ids' => array(
-                'required' => true,
-                'type' => 'array',
-                'items' => array(
-                    'type' => ['integer', 'string']
-                ),
-            ),
-        ),
-    ));
-
     // Add new REST API endpoint for paginated list
     register_rest_route('device-redirect/v1', '/redirects', array(
         'methods' => 'GET',
@@ -470,12 +424,17 @@ add_action('rest_api_init', function () {
             return current_user_can('manage_options');
         },
         'args' => array(
-            'reference_ids' => array(
+            'items' => array(
                 'required' => true,
                 'type' => 'array',
                 'items' => array(
-                    'type' => 'string'
-                ),
+                    'type' => 'object',
+                    'properties' => array(
+                        'id' => array('type' => 'integer'),
+                        'type' => array('type' => 'string'),
+                        'reference_id' => array('type' => 'string')
+                    )
+                )
             ),
         ),
     ));
@@ -743,7 +702,7 @@ function dbre_run_migration() {
     // delete_option(DBRE_SETTINGS_KEY);
 }
 
-// Add new DB helper functions
+// Add new DB helper functions - Used for Clearing Transients during Deactivation
 function dbre_get_redirects() {
     global $wpdb;
     
@@ -758,198 +717,12 @@ function dbre_get_redirects() {
     return $results ?: [];
 }
 
-function dbre_get_redirect($id) {
-    global $wpdb;
-    
-    $table_name = esc_sql(dbre_get_table_name());
-    
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
-    return $wpdb->get_row(
-        $wpdb->prepare(
-            "SELECT * FROM `{$table_name}` WHERE id = %d",
-            $id
-        ),
-        ARRAY_A
-    );
-}
-
-function dbre_save_redirect($data) {
-    global $wpdb;
-    
-    $data['updated_at'] = current_time('mysql');
-    
-    if (!empty($data['id'])) {
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
-        $wpdb->update(
-            dbre_get_table_name(),
-            $data,
-            ['id' => $data['id']]
-        );
-        return $data['id'];
-    } else {
-        // Insert
-        $data['created_at'] = current_time('mysql');
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
-        $wpdb->insert(dbre_get_table_name(), $data);
-        return $wpdb->insert_id;
-    }
-}
-
-// Add the bulk action handler
-function dbre_handle_bulk_action($request) {
-    global $wpdb;
-    
-    $action = $request->get_param('action');
-    $ids = $request->get_param('ids');
-    
-    if (empty($ids)) {
-        return new WP_Error(
-            'no_items',
-            'No items selected',
-            ['status' => 400]
-        );
-    }
-
-    // Sanitize IDs - ensure they're all integers
-    $ids = array_map(function($id) {
-        return absint(strval($id));
-    }, $ids);
-
-    // Remove any zero values that might result from invalid IDs
-    $ids = array_filter($ids);
-
-    if (empty($ids)) {
-        return new WP_Error(
-            'invalid_ids',
-            'No valid IDs provided',
-            ['status' => 400]
-        );
-    }
-
-    $table_name = esc_sql(dbre_get_table_name());
-
-    switch ($action) {
-        case 'delete':
-            // Get redirects before deleting to clear their caches
-            $redirects = $wpdb->get_results(
-                $wpdb->prepare(
-                    "SELECT type, reference_id FROM `{$table_name}` 
-                    WHERE id IN (" . implode(',', array_fill(0, count($ids), '%d')) . ")",
-                    $ids
-                ),
-                ARRAY_A
-            );
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
-            $result = $wpdb->query(
-                $wpdb->prepare(
-                    "DELETE FROM `{$table_name}` 
-                    WHERE id IN (" . implode(',', array_fill(0, count($ids), '%d')) . ")",
-                    $ids
-                )
-            );
-            // Clear transients for deleted redirects
-            foreach ($redirects as $redirect) {
-                if ($redirect['type'] === 'page') {
-                    delete_transient('dbre_redirect_' . $redirect['reference_id']);
-                } else {
-                    delete_transient('dbre_custom_redirect_' . md5($redirect['reference_id']));
-                }
-            }
-            $message = 'Redirects deleted successfully';
-            break;
-
-        case 'enable':
-        case 'disable':
-            // Get redirects before updating to clear their caches
-            $redirects = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT type, reference_id FROM `{$table_name}` 
-                WHERE id IN (" . implode(',', array_fill(0, count($ids), '%d')) . ")",
-                $ids
-                ),
-                ARRAY_A
-            );
-
-            $enabled = $action === 'enable' ? 1 : 0;
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
-            $result = $wpdb->query(
-                $wpdb->prepare(
-                    "UPDATE `{$table_name}` 
-                    SET enabled = %d 
-                    WHERE id IN (" . implode(',', array_fill(0, count($ids), '%d')) . ")",
-                    array_merge([$enabled], $ids)
-                )
-            );
-
-             // Clear transients for updated redirects
-             foreach ($redirects as $redirect) {
-                if ($redirect['type'] === 'page') {
-                    delete_transient('dbre_redirect_' . $redirect['reference_id']);
-                } else {
-                    delete_transient('dbre_custom_redirect_' . md5($redirect['reference_id']));
-                }
-            }
-
-            $message = 'Redirects ' . $action . 'd successfully';
-            break;
-
-        default:
-            return new WP_Error(
-                'invalid_action',
-                'Invalid action specified',
-                ['status' => 400]
-            );
-    }
-
-    if ($result === false) {
-        return new WP_Error(
-            'db_error',
-            'Database operation failed',
-            ['status' => 500]
-        );
-    }
-
-    // Get updated entries
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
-    $updated_entries = $wpdb->get_results(
-        $wpdb->prepare(
-            "SELECT * FROM `{$table_name}` 
-            WHERE id IN (" . implode(',', array_fill(0, count($ids), '%d')) . ")",
-            $ids
-        ),
-        ARRAY_A
-    );
-
-    return [
-        'success' => true,
-        'message' => $message,
-        'affected' => $result,
-        'entries' => $updated_entries
-    ];
-}
-
-// Add a function to get redirect by ID or reference
-function dbre_get_redirect_by_reference($type, $reference_id) {
-    global $wpdb;
-    
-    $table_name = esc_sql(dbre_get_table_name());
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
-    return $wpdb->get_row(
-        $wpdb->prepare(
-            "SELECT * FROM `{$table_name}` 
-            WHERE type = %s AND reference_id = %s",
-            $type,
-            $reference_id
-        ),
-        ARRAY_A
-    );
-}
-
 function dbre_get_table_name() {
     global $wpdb;
     return $wpdb->prefix . 'dbre_redirects';
 }
 
+// Get paginated listing of redirects - support filtering, searching, and pagination
 function dbre_get_redirects_paginated($request) {
     global $wpdb;
     $page = $request->get_param('page');
@@ -1050,56 +823,38 @@ function dbre_get_redirects_paginated($request) {
     ], 200);
 }
 
-// Add this function to properly handle deletion
-function dbre_delete_redirect($reference_id) {
-    global $wpdb;
-    
-    // Delete the redirect using reference_id
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
-    $result = $wpdb->delete(
-        dbre_get_table_name(),
-        ['reference_id' => $reference_id],
-        ['%s']
-    );
-
-    return $result !== false;
-}
-
-// Add this function to handle delete requests
+// Function to handle delete requests
 function dbre_handle_delete($request) {
     global $wpdb;
-    $reference_ids = $request->get_param('reference_ids');
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
+    $items = $request->get_param('items');
+    
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
     $wpdb->query('START TRANSACTION');
     
     try {
         $deleted_count = 0;
-        foreach ($reference_ids as $reference_id) {
-            // Get the redirect type before deleting
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
-            $redirect = $wpdb->get_row(
-                $wpdb->prepare(
-                    "SELECT type, reference_id FROM {$wpdb->prefix}dbre_redirects WHERE reference_id = %s",
-                    $reference_id
-                ),
-                ARRAY_A
+        foreach ($items as $item) {
+            // Delete using ID
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $result = $wpdb->delete(
+                dbre_get_table_name(),
+                ['id' => $item['id']],
+                ['%d']
             );
 
-            $result = dbre_delete_redirect($reference_id);
             if ($result) {
-                // Clear transients based on redirect type
-                if ($redirect && $redirect['type'] === 'page') {
-                    delete_transient('dbre_redirect_' . $reference_id);
-                } elseif ($redirect && $redirect['type'] === 'custom') {
-                    delete_transient('dbre_custom_redirect_' . md5($reference_id));
+                // Clear transients based on type from request
+                if ($item['type'] === 'page') {
+                    delete_transient('dbre_redirect_' . $item['reference_id']);
+                } else {
+                    delete_transient('dbre_custom_redirect_' . md5($item['reference_id']));
                 }
-                
                 $deleted_count++;
             }
         }
         
-        if ($deleted_count === count($reference_ids)) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
+        if ($deleted_count === count($items)) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->query('COMMIT');
             return new WP_REST_Response([
                 'success' => true,
@@ -1109,7 +864,7 @@ function dbre_handle_delete($request) {
             throw new Exception('Some redirects could not be deleted');
         }
     } catch (Exception $e) {
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->query('ROLLBACK');
         return new WP_Error(
             'delete_failed',
