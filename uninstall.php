@@ -12,6 +12,7 @@ global $wpdb;
 $redirects_table = esc_sql($wpdb->prefix . 'dbre_redirects');
 
 // Drop the redirects table with proper preparation
+// phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Intended schema change during plugin uninstallation
 $wpdb->query(
     $wpdb->prepare(
         "DROP TABLE IF EXISTS %s",

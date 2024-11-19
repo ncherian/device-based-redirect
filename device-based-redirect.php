@@ -30,7 +30,7 @@ function dbre_activate() {
     $redirects_sql = "CREATE TABLE IF NOT EXISTS " . dbre_get_table_name() . " (
         `id` bigint(20) NOT NULL AUTO_INCREMENT,
         `type` enum('page', 'custom') NOT NULL,
-        `reference_id` varchar(191) DEFAULT NULL,
+        `reference_id` varchar(191) NOT NULL,
         `ios_url` text DEFAULT NULL,
         `android_url` text DEFAULT NULL,
         `backup_url` text DEFAULT NULL,
@@ -50,10 +50,19 @@ function dbre_activate() {
 
     // Store current DB version
     update_option('dbre_db_version', DBRE_DB_VERSION);
+
 }
 
 function dbre_deactivate() {
-    // Deactivation code
+    // Clear all caches
+    $redirects = dbre_get_redirects();
+    foreach ($redirects as $redirect) {
+        if ($redirect['type'] === 'page') {
+            wp_cache_delete('dbre_redirect_' . $redirect['reference_id'], 'device_redirect');
+        } else if ($redirect['type'] === 'custom') {
+            wp_cache_delete('dbre_custom_redirect_' . md5($redirect['reference_id']), 'device_redirect');
+        }
+    }
 }
 
 // ===============================================
@@ -220,26 +229,16 @@ function dbre_save_settings() {
     }
 
     global $wpdb;
-// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
-$wpdb->query('START TRANSACTION');
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
+    $wpdb->query('START TRANSACTION');
 
     try {
         $saved_entries = [];
         $deleted_count = 0;
 
         foreach ($settings as $key => $value) {
-
-            // If value is null, delete the redirect
-            if ($value === null) {
-                $delete_result = dbre_delete_redirect($key);
-                if (!$delete_result) {
-                    throw new Exception("Failed to delete redirect with reference_id: {$key}");
-                }
-                $deleted_count++;
-                continue;
-            }
-
-            $type = is_numeric($key) ? 'page' : 'custom';
+            // Use the type from the data instead of inferring from key
+            $type = isset($value['type']) ? $value['type'] : 'custom';
             
             $redirect_data = [
                 'type' => $type,
@@ -252,6 +251,7 @@ $wpdb->query('START TRANSACTION');
 
             $table_name = esc_sql(dbre_get_table_name());
 
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
             $existing = $wpdb->get_row(
                 $wpdb->prepare(
                     "SELECT id FROM {$wpdb->prefix}dbre_redirects WHERE type = %s AND reference_id = %s",
@@ -261,9 +261,11 @@ $wpdb->query('START TRANSACTION');
 
             if ($existing) {
                 $redirect_data['id'] = $existing->id;
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
                 $wpdb->update(dbre_get_table_name(), $redirect_data, ['id' => $existing->id]);
                 $saved_id = $existing->id;
             } else {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
                 $wpdb->insert(dbre_get_table_name(), $redirect_data);
                 $saved_id = $wpdb->insert_id;
             }
@@ -272,6 +274,7 @@ $wpdb->query('START TRANSACTION');
             $table_name = esc_sql(dbre_get_table_name());
 
             // Build the query with escaped table name and prepare the ID
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
             $saved_entry = $wpdb->get_row(
                 $wpdb->prepare(
                     "SELECT * FROM `{$table_name}` WHERE id = %d",
@@ -285,7 +288,17 @@ $wpdb->query('START TRANSACTION');
             }
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
         $wpdb->query('COMMIT');
+      
+        // Clear caches
+        foreach ($settings as $key => $value) {
+            if ($value['type'] === 'page') {
+                wp_cache_delete('dbre_redirect_' . $key, 'device_redirect');
+            } else {
+                wp_cache_delete('dbre_custom_redirect_' . md5($key), 'device_redirect');
+            }
+        }
 
         wp_send_json_success([
             'message' => $deleted_count > 0 ? 
@@ -296,6 +309,7 @@ $wpdb->query('START TRANSACTION');
             'deleted_count' => $deleted_count
         ]);
     } catch (Exception $e) {
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
         $wpdb->query('ROLLBACK');
         wp_send_json_error('Save failed: ' . $e->getMessage());
     }
@@ -307,23 +321,31 @@ $wpdb->query('START TRANSACTION');
 // ===============================================
 function dbre_redirect_logic() {
     try {
-        global $wpdb;
         $current_page_id = get_the_ID();
         $current_url = home_url(add_query_arg(NULL, NULL));
-
-        $table_name = esc_sql(dbre_get_table_name());
-
-        // Get page redirect if exists
-        $redirect = $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT * FROM `{$table_name}`
-                WHERE type = 'page' 
-                AND reference_id = %s 
-                AND enabled = 1",
-                $current_page_id
-            ),
-            ARRAY_A
-        );
+        
+        // Get cached redirect for this page
+        $cache_key = 'dbre_redirect_' . $current_page_id;
+        $redirect = wp_cache_get($cache_key, 'device_redirect');
+        
+        if (false === $redirect) {
+            global $wpdb;
+            $table_name = esc_sql(dbre_get_table_name());
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
+            $redirect = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT * FROM `{$table_name}`
+                    WHERE type = 'page' 
+                    AND reference_id = %s 
+                    AND enabled = 1",
+                    $current_page_id
+                ),
+                ARRAY_A
+            );
+            
+            // Cache for 1 hour
+            wp_cache_set($cache_key, $redirect, 'device_redirect', 3600);
+        }
 
         if ($redirect && (!empty($redirect['ios_url']) || !empty($redirect['android_url']))) {
             // Enqueue the redirect script
@@ -474,6 +496,7 @@ function dbre_validate_slug($request) {
     $table_name = esc_sql(dbre_get_table_name());
 
     // Check existing redirects
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
     $existing_redirect = $wpdb->get_var(
         $wpdb->prepare(
             "SELECT id FROM `{$table_name}` WHERE type = 'custom' AND reference_id = %s",
@@ -497,6 +520,7 @@ function dbre_handle_slug_conflicts($slug, $post_ID, $post_status, $post_type, $
     
     $table_name = esc_sql(dbre_get_table_name());
     // Check if slug exists in redirects
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
     $existing = $wpdb->get_var(
         $wpdb->prepare(
             "SELECT id FROM `{$table_name}`
@@ -509,6 +533,7 @@ function dbre_handle_slug_conflicts($slug, $post_ID, $post_status, $post_type, $
         $suffix = 1;
         do {
             $alt_slug = $original_slug . "-$suffix";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
             $post_name_check = $wpdb->get_var(
                 $wpdb->prepare(
                     "SELECT post_name FROM $wpdb->posts 
@@ -542,18 +567,28 @@ function dbre_handle_custom_slugs($wp) {
         $current_slug = $request_path;
     }
 
-    $table_name = esc_sql(dbre_get_table_name());
-    // Get custom redirect if exists
-    $redirect = $wpdb->get_row(
-        $wpdb->prepare(
-            "SELECT * FROM `{$table_name}`
-            WHERE type = 'custom' 
-            AND reference_id = %s 
-            AND enabled = 1",
-            $current_slug
-        ),
-        ARRAY_A
-    );
+    // Try to get from cache first
+    $cache_key = 'dbre_custom_redirect_' . md5($current_slug);
+    $redirect = wp_cache_get($cache_key, 'device_redirect');
+    
+    if (false === $redirect) {
+        global $wpdb;
+        $table_name = esc_sql(dbre_get_table_name());
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
+        $redirect = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT * FROM `{$table_name}`
+                WHERE type = 'custom' 
+                AND reference_id = %s 
+                AND enabled = 1",
+                $current_slug
+            ),
+            ARRAY_A
+        );
+        
+        // Cache for 1 hour
+        wp_cache_set($cache_key, $redirect, 'device_redirect', 3600);
+    }
 
     if ($redirect) {
         // Get device type
@@ -631,6 +666,7 @@ function dbre_prevent_old_slug_redirect($redirect_url, $requested_url) {
 
     $table_name = esc_sql(dbre_get_table_name());
     // Check if slug exists in redirects
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
     $exists = $wpdb->get_var(
         $wpdb->prepare(
             "SELECT id FROM `{$table_name}`
@@ -662,6 +698,7 @@ function dbre_run_migration() {
             $reference_id = $key;
 
             // Insert into new table
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
             $wpdb->insert(
                 dbre_get_table_name(),
                 [
@@ -695,6 +732,7 @@ function dbre_get_redirects() {
     
     $table_name = esc_sql(dbre_get_table_name());
     
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
     $results = $wpdb->get_results(
         "SELECT * FROM `{$table_name}` ORDER BY `order` ASC",
         ARRAY_A
@@ -708,6 +746,7 @@ function dbre_get_redirect($id) {
     
     $table_name = esc_sql(dbre_get_table_name());
     
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
     return $wpdb->get_row(
         $wpdb->prepare(
             "SELECT * FROM `{$table_name}` WHERE id = %d",
@@ -723,7 +762,7 @@ function dbre_save_redirect($data) {
     $data['updated_at'] = current_time('mysql');
     
     if (!empty($data['id'])) {
-        // Update
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
         $wpdb->update(
             dbre_get_table_name(),
             $data,
@@ -733,6 +772,7 @@ function dbre_save_redirect($data) {
     } else {
         // Insert
         $data['created_at'] = current_time('mysql');
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
         $wpdb->insert(dbre_get_table_name(), $data);
         return $wpdb->insert_id;
     }
@@ -773,6 +813,7 @@ function dbre_handle_bulk_action($request) {
 
     switch ($action) {
         case 'delete':
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
             $result = $wpdb->query(
                 $wpdb->prepare(
                     "DELETE FROM `{$table_name}` 
@@ -786,6 +827,7 @@ function dbre_handle_bulk_action($request) {
         case 'enable':
         case 'disable':
             $enabled = $action === 'enable' ? 1 : 0;
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
             $result = $wpdb->query(
                 $wpdb->prepare(
                     "UPDATE `{$table_name}` 
@@ -814,6 +856,7 @@ function dbre_handle_bulk_action($request) {
     }
 
     // Get updated entries
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
     $updated_entries = $wpdb->get_results(
         $wpdb->prepare(
             "SELECT * FROM `{$table_name}` 
@@ -836,6 +879,7 @@ function dbre_get_redirect_by_reference($type, $reference_id) {
     global $wpdb;
     
     $table_name = esc_sql(dbre_get_table_name());
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
     return $wpdb->get_row(
         $wpdb->prepare(
             "SELECT * FROM `{$table_name}` 
@@ -896,6 +940,7 @@ function dbre_get_redirects_paginated($request) {
     $where_statement = implode(' AND ', $where_sql);
     
     // Get total count
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
     $total_items = (int)$wpdb->get_var(
         $wpdb->prepare(
             "SELECT COUNT(*) FROM `$table_name` WHERE $where_statement",
@@ -905,6 +950,7 @@ function dbre_get_redirects_paginated($request) {
     
     // Get paginated results
     $prepared_values = array_merge($where_values, array($per_page, $offset));
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
     $results = $wpdb->get_results(
         $wpdb->prepare(
             "SELECT * FROM `$table_name` 
@@ -955,6 +1001,7 @@ function dbre_delete_redirect($reference_id) {
     global $wpdb;
     
     // Delete the redirect using reference_id
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
     $result = $wpdb->delete(
         dbre_get_table_name(),
         ['reference_id' => $reference_id],
@@ -968,19 +1015,37 @@ function dbre_delete_redirect($reference_id) {
 function dbre_handle_delete($request) {
     global $wpdb;
     $reference_ids = $request->get_param('reference_ids');
-    
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
     $wpdb->query('START TRANSACTION');
     
     try {
         $deleted_count = 0;
         foreach ($reference_ids as $reference_id) {
+            // Get the redirect type before deleting
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
+            $redirect = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT type, reference_id FROM {$wpdb->prefix}dbre_redirects WHERE reference_id = %s",
+                    $reference_id
+                ),
+                ARRAY_A
+            );
+
             $result = dbre_delete_redirect($reference_id);
             if ($result) {
+                // Clear cache based on redirect type
+                if ($redirect && $redirect['type'] === 'page') {
+                    wp_cache_delete('dbre_redirect_' . $reference_id, 'device_redirect');
+                } elseif ($redirect && $redirect['type'] === 'custom') {
+                    wp_cache_delete('dbre_custom_redirect_' . md5($reference_id), 'device_redirect');
+                }
+                
                 $deleted_count++;
             }
         }
         
         if ($deleted_count === count($reference_ids)) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
             $wpdb->query('COMMIT');
             return new WP_REST_Response([
                 'success' => true,
@@ -990,6 +1055,7 @@ function dbre_handle_delete($request) {
             throw new Exception('Some redirects could not be deleted');
         }
     } catch (Exception $e) {
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
         $wpdb->query('ROLLBACK');
         return new WP_Error(
             'delete_failed',

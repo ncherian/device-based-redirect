@@ -1,7 +1,7 @@
 === Device Based Redirect ===
 Contributors: ncherian
 Donate link: https://www.buymeacoffee.com/indimakes
-Tags: mobile redirect, device detection, app redirect, deep links, platform specific redirect, app store links, play store links, device specific redirect, deep link redirect, app store redirect, play store redirect, device based redirect
+Tags: mobile redirect, device specific redirects, app redirects, platform specific redirect, store links
 Requires at least: 5.0
 Tested up to: 6.7
 Stable tag: 1.0.0
