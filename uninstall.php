@@ -8,11 +8,16 @@ if (!defined('WP_UNINSTALL_PLUGIN')) {
 // Access WordPress database
 global $wpdb;
 
-// Get table name with prefix
-$redirects_table = $wpdb->prefix . 'dbre_redirects';
+// Get table name with prefix and escape it
+$redirects_table = esc_sql($wpdb->prefix . 'dbre_redirects');
 
-// Drop the redirects table
-$wpdb->query("DROP TABLE IF EXISTS $redirects_table");
+// Drop the redirects table with proper preparation
+$wpdb->query(
+    $wpdb->prepare(
+        "DROP TABLE IF EXISTS %s",
+        $redirects_table
+    )
+);
 
 // Remove all plugin options
 delete_option('dbre_db_version');
@@ -21,4 +26,3 @@ delete_option('dbre_entries'); // Remove old options data if exists
 
 // Clear any cached data
 wp_cache_flush();
-

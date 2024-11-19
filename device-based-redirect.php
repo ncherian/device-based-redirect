@@ -157,9 +157,6 @@ function dbre_scripts($hook) {
     // Get all redirects from the new DB structure
     $redirects = dbre_get_redirects();
     
-    // Debug output
-    error_log('Raw redirects from DB: ' . print_r($redirects, true));
-    
     // Format redirects for the frontend
     $formatted_redirects = [];
     foreach ($redirects as $redirect) {
@@ -177,9 +174,6 @@ function dbre_scripts($hook) {
             'order' => (int)$redirect['order']
         ];
     }
-
-    // Debug output
-    error_log('Formatted redirects: ' . print_r($formatted_redirects, true));
 
     // Get all pages for the dropdown
     $all_pages = get_pages();
@@ -226,16 +220,14 @@ function dbre_save_settings() {
     }
 
     global $wpdb;
-    $wpdb->query('START TRANSACTION');
+// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
+$wpdb->query('START TRANSACTION');
 
     try {
         $saved_entries = [];
         $deleted_count = 0;
 
         foreach ($settings as $key => $value) {
-            // Log the current operation
-            error_log("Processing setting for key: {$key}");
-            error_log("Value: " . var_export($value, true));
 
             // If value is null, delete the redirect
             if ($value === null) {
@@ -258,11 +250,12 @@ function dbre_save_settings() {
                 'enabled' => isset($value['enabled']) ? (bool)$value['enabled'] : false
             ];
 
+            $table_name = esc_sql(dbre_get_table_name());
+
             $existing = $wpdb->get_row(
                 $wpdb->prepare(
-                    "SELECT id FROM " . dbre_get_table_name() . " WHERE type = %s AND reference_id = %s",
-                    $type,
-                    $key
+                    "SELECT id FROM {$wpdb->prefix}dbre_redirects WHERE type = %s AND reference_id = %s",
+                    array($type, $key)
                 )
             );
 
@@ -276,9 +269,12 @@ function dbre_save_settings() {
             }
 
             // Get the complete saved entry
+            $table_name = esc_sql(dbre_get_table_name());
+
+            // Build the query with escaped table name and prepare the ID
             $saved_entry = $wpdb->get_row(
                 $wpdb->prepare(
-                    "SELECT * FROM " . dbre_get_table_name() . " WHERE id = %d",
+                    "SELECT * FROM `{$table_name}` WHERE id = %d",
                     $saved_id
                 ),
                 ARRAY_A
@@ -301,7 +297,6 @@ function dbre_save_settings() {
         ]);
     } catch (Exception $e) {
         $wpdb->query('ROLLBACK');
-        error_log("Error in dbre_save_settings: " . $e->getMessage());
         wp_send_json_error('Save failed: ' . $e->getMessage());
     }
 }
@@ -316,10 +311,12 @@ function dbre_redirect_logic() {
         $current_page_id = get_the_ID();
         $current_url = home_url(add_query_arg(NULL, NULL));
 
+        $table_name = esc_sql(dbre_get_table_name());
+
         // Get page redirect if exists
         $redirect = $wpdb->get_row(
             $wpdb->prepare(
-                "SELECT * FROM " . dbre_get_table_name() . " 
+                "SELECT * FROM `{$table_name}`
                 WHERE type = 'page' 
                 AND reference_id = %s 
                 AND enabled = 1",
@@ -474,10 +471,12 @@ function dbre_validate_slug($request) {
         }
     }
     
+    $table_name = esc_sql(dbre_get_table_name());
+
     // Check existing redirects
     $existing_redirect = $wpdb->get_var(
         $wpdb->prepare(
-            "SELECT id FROM " . dbre_get_table_name() . " WHERE type = 'custom' AND reference_id = %s",
+            "SELECT id FROM `{$table_name}` WHERE type = 'custom' AND reference_id = %s",
             $slug
         )
     );
@@ -496,10 +495,11 @@ function dbre_validate_slug($request) {
 function dbre_handle_slug_conflicts($slug, $post_ID, $post_status, $post_type, $post_parent, $original_slug) {
     global $wpdb;
     
+    $table_name = esc_sql(dbre_get_table_name());
     // Check if slug exists in redirects
     $existing = $wpdb->get_var(
         $wpdb->prepare(
-            "SELECT id FROM " . dbre_get_table_name() . " 
+            "SELECT id FROM `{$table_name}`
             WHERE type = 'custom' AND reference_id = %s",
             $slug
         )
@@ -542,10 +542,11 @@ function dbre_handle_custom_slugs($wp) {
         $current_slug = $request_path;
     }
 
+    $table_name = esc_sql(dbre_get_table_name());
     // Get custom redirect if exists
     $redirect = $wpdb->get_row(
         $wpdb->prepare(
-            "SELECT * FROM " . dbre_get_table_name() . " 
+            "SELECT * FROM `{$table_name}`
             WHERE type = 'custom' 
             AND reference_id = %s 
             AND enabled = 1",
@@ -628,10 +629,11 @@ function dbre_prevent_old_slug_redirect($redirect_url, $requested_url) {
     // Remove query strings
     $current_slug = strtok($current_slug, '?');
 
+    $table_name = esc_sql(dbre_get_table_name());
     // Check if slug exists in redirects
     $exists = $wpdb->get_var(
         $wpdb->prepare(
-            "SELECT id FROM " . dbre_get_table_name() . " 
+            "SELECT id FROM `{$table_name}`
             WHERE type = 'custom' 
             AND reference_id = %s 
             AND enabled = 1",
@@ -691,24 +693,24 @@ function dbre_run_migration() {
 function dbre_get_redirects() {
     global $wpdb;
     
+    $table_name = esc_sql(dbre_get_table_name());
+    
     $results = $wpdb->get_results(
-        "SELECT * FROM " . dbre_get_table_name() . " ORDER BY `order` ASC",
+        "SELECT * FROM `{$table_name}` ORDER BY `order` ASC",
         ARRAY_A
     );
-    
-    // Debug output
-    error_log('SQL Query: ' . $wpdb->last_query);
-    error_log('SQL Result: ' . print_r($results, true));
-    
+
     return $results ?: [];
 }
 
 function dbre_get_redirect($id) {
     global $wpdb;
     
+    $table_name = esc_sql(dbre_get_table_name());
+    
     return $wpdb->get_row(
         $wpdb->prepare(
-            "SELECT * FROM " . dbre_get_table_name() . " WHERE id = %d",
+            "SELECT * FROM `{$table_name}` WHERE id = %d",
             $id
         ),
         ARRAY_A
@@ -767,11 +769,13 @@ function dbre_handle_bulk_action($request) {
         );
     }
 
+    $table_name = esc_sql(dbre_get_table_name());
+
     switch ($action) {
         case 'delete':
             $result = $wpdb->query(
                 $wpdb->prepare(
-                    "DELETE FROM " . dbre_get_table_name() . " 
+                    "DELETE FROM `{$table_name}` 
                     WHERE id IN (" . implode(',', array_fill(0, count($ids), '%d')) . ")",
                     $ids
                 )
@@ -784,7 +788,7 @@ function dbre_handle_bulk_action($request) {
             $enabled = $action === 'enable' ? 1 : 0;
             $result = $wpdb->query(
                 $wpdb->prepare(
-                    "UPDATE " . dbre_get_table_name() . " 
+                    "UPDATE `{$table_name}` 
                     SET enabled = %d 
                     WHERE id IN (" . implode(',', array_fill(0, count($ids), '%d')) . ")",
                     array_merge([$enabled], $ids)
@@ -812,7 +816,7 @@ function dbre_handle_bulk_action($request) {
     // Get updated entries
     $updated_entries = $wpdb->get_results(
         $wpdb->prepare(
-            "SELECT * FROM " . dbre_get_table_name() . " 
+            "SELECT * FROM `{$table_name}` 
             WHERE id IN (" . implode(',', array_fill(0, count($ids), '%d')) . ")",
             $ids
         ),
@@ -831,9 +835,10 @@ function dbre_handle_bulk_action($request) {
 function dbre_get_redirect_by_reference($type, $reference_id) {
     global $wpdb;
     
+    $table_name = esc_sql(dbre_get_table_name());
     return $wpdb->get_row(
         $wpdb->prepare(
-            "SELECT * FROM " . dbre_get_table_name() . " 
+            "SELECT * FROM `{$table_name}` 
             WHERE type = %s AND reference_id = %s",
             $type,
             $reference_id
@@ -857,47 +862,59 @@ function dbre_get_redirects_paginated($request) {
     $id = $request->get_param('id');
     
     $offset = ($page - 1) * $per_page;
+    $table_name = esc_sql(dbre_get_table_name());
     
-    // Build query
-    $where_clauses = array('1=1');
+    // Initialize base query parts
+    $where_sql = array('1=1');
     $where_values = array();
     
     // Add ID check
     if ($id) {
-        $where_clauses[] = 'id = %d';
+        $where_sql[] = 'id = %d';
         $where_values[] = $id;
     }
     
     // Make type check more explicit
     if ($type && $type !== 'all') {
-        $where_clauses[] = 'type = %s';
+        $where_sql[] = 'type = %s';
         $where_values[] = $type;
     }
     
     // Make reference_id check more explicit
     if ($reference_id !== '') {
-        $where_clauses[] = 'reference_id = %s';
+        $where_sql[] = 'reference_id = %s';
         $where_values[] = $reference_id;
     }
     
     if ($search !== '') {
-        $where_clauses[] = '(reference_id LIKE %s OR ios_url LIKE %s OR android_url LIKE %s OR backup_url LIKE %s)';
+        $where_sql[] = '(reference_id LIKE %s OR ios_url LIKE %s OR android_url LIKE %s OR backup_url LIKE %s)';
         $search_term = '%' . $wpdb->esc_like($search) . '%';
         $where_values = array_merge($where_values, array($search_term, $search_term, $search_term, $search_term));
     }
     
+    // Construct the WHERE clause
+    $where_statement = implode(' AND ', $where_sql);
+    
     // Get total count
-    $count_query = "SELECT COUNT(*) FROM " . dbre_get_table_name() . " WHERE " . implode(' AND ', $where_clauses);
-    $total_items = (int)$wpdb->get_var($wpdb->prepare($count_query, $where_values));
+    $total_items = (int)$wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT COUNT(*) FROM `$table_name` WHERE $where_statement",
+            $where_values
+        )
+    );
     
     // Get paginated results
-    $query = "SELECT * FROM " . dbre_get_table_name() . " 
-              WHERE " . implode(' AND ', $where_clauses) . "
-              ORDER BY created_at DESC 
-              LIMIT %d OFFSET %d";
-    
     $prepared_values = array_merge($where_values, array($per_page, $offset));
-    $results = $wpdb->get_results($wpdb->prepare($query, $prepared_values), ARRAY_A);
+    $results = $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT * FROM `$table_name` 
+             WHERE $where_statement 
+             ORDER BY created_at DESC 
+             LIMIT %d OFFSET %d",
+            $prepared_values
+        ),
+        ARRAY_A
+    );
     
     // Format results for frontend
     $formatted_results = array_map(function($item) {
@@ -943,11 +960,6 @@ function dbre_delete_redirect($reference_id) {
         ['reference_id' => $reference_id],
         ['%s']
     );
-
-    // Log deletion attempt for debugging
-    error_log("Attempting to delete redirect with reference_id: {$reference_id}");
-    error_log("Delete result: " . var_export($result, true));
-    error_log("Last SQL query: {$wpdb->last_query}");
 
     return $result !== false;
 }
