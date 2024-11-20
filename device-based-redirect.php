@@ -226,12 +226,10 @@ function dbre_save_settings() {
                 'enabled' => isset($value['enabled']) ? (bool)$value['enabled'] : false
             ];
 
-            $table_name = esc_sql(dbre_get_table_name());
-
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
             $existing = $wpdb->get_row(
                 $wpdb->prepare(
-                    "SELECT id FROM {$wpdb->prefix}dbre_redirects WHERE type = %s AND reference_id = %s",
+                    "SELECT id FROM {$wpdb->prefix}dbre_redirects   WHERE type = %s AND reference_id = %s",
                     array($type, $key)
                 )
             );
@@ -247,14 +245,11 @@ function dbre_save_settings() {
                 $saved_id = $wpdb->insert_id;
             }
 
-            // Get the complete saved entry
-            $table_name = esc_sql(dbre_get_table_name());
-
             // Build the query with escaped table name and prepare the ID
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
             $saved_entry = $wpdb->get_row(
                 $wpdb->prepare(
-                    "SELECT * FROM `{$table_name}` WHERE id = %d",
+                    "SELECT * FROM {$wpdb->prefix}dbre_redirects  WHERE id = %d",
                     $saved_id
                 ),
                 ARRAY_A
@@ -298,24 +293,19 @@ function dbre_save_settings() {
 // ===============================================
 function dbre_redirect_logic() {
     try {
-        error_log('Starting dbre_redirect_logic');
         $current_page_id = get_the_ID();
-        error_log('Current Page ID: ' . $current_page_id);
         $current_url = get_permalink($current_page_id);
-        error_log('Current URL: ' . $current_url);
 
         // Get cached redirect for this page
         $cache_key = 'dbre_redirect_' . $current_page_id;
         $redirect = get_transient($cache_key);
-        error_log('Cache Result: ' . ($redirect ? 'Hit' : 'Miss'));
 
         if (false === $redirect) {
             global $wpdb;
-            $table_name = esc_sql(dbre_get_table_name());
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
             $redirect = $wpdb->get_row(
                 $wpdb->prepare(
-                    "SELECT * FROM `{$table_name}`
+                    "SELECT * FROM {$wpdb->prefix}dbre_redirects 
                     WHERE type = 'page' 
                     AND reference_id = %s 
                     AND enabled = 1",
@@ -323,19 +313,11 @@ function dbre_redirect_logic() {
                 ),
                 ARRAY_A
             );
-            error_log('DB Result: ' . print_r($redirect, true));
-
-            error_log('Cache key: ' . $cache_key);
-            error_log('Cache group: device_redirect');
-            error_log('Cache value before: ' . print_r(get_transient($cache_key), true));
+         
             set_transient($cache_key, $redirect, 3600);
-            error_log('Cache value after: ' . print_r(get_transient($cache_key), true));
         }
 
         if ($redirect && (!empty($redirect['ios_url']) || !empty($redirect['android_url']))) {
-            error_log('Found valid redirect, enqueueing script');
-            error_log('iOS URL: ' . $redirect['ios_url']);
-            error_log('Android URL: ' . $redirect['android_url']);
             // Enqueue the redirect script
             wp_enqueue_script(
                 'device-redirect-front',
@@ -356,15 +338,20 @@ function dbre_redirect_logic() {
                     'current' => esc_js($current_url)
                 )
             );
-            error_log('Script enqueued with config');
 
         }else{
-            error_log('No valid redirect found or URLs empty');
-
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                // Using wp_debug_log is preferred when available
+                if (function_exists('wp_debug_log')) {
+                    wp_debug_log('No valid redirect found or URLs empty');
+                }
+            }
         }
     } catch (Exception $e) {
         if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('Device Redirect Error: ' . $e->getMessage());
+            if (function_exists('wp_debug_log')) {
+                wp_debug_log('Device Redirect Error: ' . $e->getMessage());
+            }
         }
     }
 }
@@ -468,13 +455,12 @@ function dbre_validate_slug($request) {
         }
     }
     
-    $table_name = esc_sql(dbre_get_table_name());
 
     // Check existing redirects
     // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
     $existing_redirect = $wpdb->get_var(
         $wpdb->prepare(
-            "SELECT id FROM `{$table_name}` WHERE type = 'custom' AND reference_id = %s",
+            "SELECT id FROM {$wpdb->prefix}dbre_redirects  WHERE type = 'custom' AND reference_id = %s",
             $slug
         )
     );
@@ -493,12 +479,11 @@ function dbre_validate_slug($request) {
 function dbre_handle_slug_conflicts($slug, $post_ID, $post_status, $post_type, $post_parent, $original_slug) {
     global $wpdb;
     
-    $table_name = esc_sql(dbre_get_table_name());
     // Check if slug exists in redirects
     // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
     $existing = $wpdb->get_var(
         $wpdb->prepare(
-            "SELECT id FROM `{$table_name}`
+            "SELECT id FROM {$wpdb->prefix}dbre_redirects 
             WHERE type = 'custom' AND reference_id = %s",
             $slug
         )
@@ -548,11 +533,10 @@ function dbre_handle_custom_slugs($wp) {
     
     if (false === $redirect) {
         global $wpdb;
-        $table_name = esc_sql(dbre_get_table_name());
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
         $redirect = $wpdb->get_row(
             $wpdb->prepare(
-                "SELECT * FROM `{$table_name}`
+                "SELECT * FROM {$wpdb->prefix}dbre_redirects 
                 WHERE type = 'custom' 
                 AND reference_id = %s 
                 AND enabled = 1",
@@ -639,12 +623,11 @@ function dbre_prevent_old_slug_redirect($redirect_url, $requested_url) {
     // Remove query strings
     $current_slug = strtok($current_slug, '?');
 
-    $table_name = esc_sql(dbre_get_table_name());
     // Check if slug exists in redirects
     // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
     $exists = $wpdb->get_var(
         $wpdb->prepare(
-            "SELECT id FROM `{$table_name}`
+            "SELECT id FROM {$wpdb->prefix}dbre_redirects 
             WHERE type = 'custom' 
             AND reference_id = %s 
             AND enabled = 1",
@@ -705,12 +688,10 @@ function dbre_run_migration() {
 // Add new DB helper functions - Used for Clearing Transients during Deactivation
 function dbre_get_redirects() {
     global $wpdb;
-    
-    $table_name = esc_sql(dbre_get_table_name());
-    
+        
     // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
     $results = $wpdb->get_results(
-        "SELECT * FROM `{$table_name}` ORDER BY `order` ASC",
+        "SELECT * FROM {$wpdb->prefix}dbre_redirects  ORDER BY `order` ASC",
         ARRAY_A
     );
 
@@ -722,72 +703,48 @@ function dbre_get_table_name() {
     return $wpdb->prefix . 'dbre_redirects';
 }
 
-// Get paginated listing of redirects - support filtering, searching, and pagination
 function dbre_get_redirects_paginated($request) {
     global $wpdb;
     $page = $request->get_param('page');
     $per_page = $request->get_param('per_page');
     $type = $request->get_param('type');
-    $search = $request->get_param('search');
-    $reference_id = $request->get_param('reference_id');
-    $id = $request->get_param('id');
     
     $offset = ($page - 1) * $per_page;
-    $table_name = esc_sql(dbre_get_table_name());
     
-    // Initialize base query parts
-    $where_sql = array('1=1');
-    $where_values = array();
-    
-    // Add ID check
-    if ($id) {
-        $where_sql[] = 'id = %d';
-        $where_values[] = $id;
-    }
-    
-    // Make type check more explicit
     if ($type && $type !== 'all') {
-        $where_sql[] = 'type = %s';
-        $where_values[] = $type;
+        // Query with type filter
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $total_items = (int)$wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->prefix}dbre_redirects WHERE type = %s",
+                $type
+            )
+        );
+        
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $results = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}dbre_redirects WHERE type = %s ORDER BY created_at DESC LIMIT %d OFFSET %d",
+                $type, $per_page, $offset
+            ),
+            ARRAY_A
+        );
+    } else {
+        // No type filter, get all records
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $total_items = (int)$wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}dbre_redirects"
+        );
+        
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $results = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}dbre_redirects ORDER BY created_at DESC LIMIT %d OFFSET %d",
+                $per_page, $offset
+            ),
+            ARRAY_A
+        );
     }
-    
-    // Make reference_id check more explicit
-    if ($reference_id !== '') {
-        $where_sql[] = 'reference_id = %s';
-        $where_values[] = $reference_id;
-    }
-    
-    if ($search !== '') {
-        $where_sql[] = '(reference_id LIKE %s OR ios_url LIKE %s OR android_url LIKE %s OR backup_url LIKE %s)';
-        $search_term = '%' . $wpdb->esc_like($search) . '%';
-        $where_values = array_merge($where_values, array($search_term, $search_term, $search_term, $search_term));
-    }
-    
-    // Construct the WHERE clause
-    $where_statement = implode(' AND ', $where_sql);
-    
-    // Get total count
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
-    $total_items = (int)$wpdb->get_var(
-        $wpdb->prepare(
-            "SELECT COUNT(*) FROM `$table_name` WHERE $where_statement",
-            $where_values
-        )
-    );
-    
-    // Get paginated results
-    $prepared_values = array_merge($where_values, array($per_page, $offset));
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
-    $results = $wpdb->get_results(
-        $wpdb->prepare(
-            "SELECT * FROM `$table_name` 
-             WHERE $where_statement 
-             ORDER BY created_at DESC 
-             LIMIT %d OFFSET %d",
-            $prepared_values
-        ),
-        ARRAY_A
-    );
     
     // Format results for frontend
     $formatted_results = array_map(function($item) {
