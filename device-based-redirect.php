@@ -23,14 +23,46 @@ register_activation_hook(__FILE__, 'dbre_activate');
 register_deactivation_hook(__FILE__, 'dbre_deactivate');
 
 function dbre_activate() {
-    // Only initialize the settings
-    if (false === get_option(DBRE_SETTINGS_KEY)) {
-        add_option(DBRE_SETTINGS_KEY, []);
-    }
+    global $wpdb;
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+
+    // Create redirects table
+    $redirects_sql = "CREATE TABLE IF NOT EXISTS " . dbre_get_table_name() . " (
+        `id` bigint(20) NOT NULL AUTO_INCREMENT,
+        `type` enum('page', 'custom') NOT NULL,
+        `reference_id` varchar(191) NOT NULL,
+        `ios_url` text DEFAULT NULL,
+        `android_url` text DEFAULT NULL,
+        `backup_url` text DEFAULT NULL,
+        `enabled` tinyint(1) DEFAULT 0,
+        `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+        `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        `order` int(11) DEFAULT 0,
+        PRIMARY KEY (`id`),
+        UNIQUE KEY `type_reference` (`type`, `reference_id`),
+        KEY `enabled` (`enabled`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
+
+    dbDelta($redirects_sql);
+
+    // Run migration if needed
+    dbre_run_migration();
+
+    // Store current DB version
+    update_option('dbre_db_version', DBRE_DB_VERSION);
+
 }
 
 function dbre_deactivate() {
-    // Deactivation code
+    // Clear all Trasients
+    $redirects = dbre_get_redirects();
+    foreach ($redirects as $redirect) {
+        if ($redirect['type'] === 'page') {
+            delete_transient('dbre_redirect_' . $redirect['reference_id']);
+        } else if ($redirect['type'] === 'custom') {
+            delete_transient('dbre_custom_redirect_' . md5($redirect['reference_id']));
+        }
+    }
 }
 
 // ===============================================
@@ -42,18 +74,19 @@ add_action('admin_enqueue_scripts', 'dbre_scripts');
 add_action('template_redirect', 'dbre_redirect_logic');
 add_action('parse_request', 'dbre_handle_custom_slugs', 1);
 add_action('init', 'dbre_modify_redirect_canonical', 0);
-add_action('wp_ajax_save_device_redirect_settings', 'dbre_save_settings'); 
+add_action('wp_ajax_save_device_redirect_settings', 'dbre_save_settings');
 add_filter('wp_unique_post_slug', 'dbre_handle_slug_conflicts', 10, 6);
 
 
 // define('DEVICE_REDIRECT_MINIMUM_WP_VERSION', '5.0');
 // define('DEVICE_REDIRECT_MINIMUM_PHP_VERSION', '7.2');
 // URL pattern constants
-define('DBRE_VERSION', '1.0.0');
+define('DBRE_VERSION', '1.1.0');
 define('DBRE_IOS_URL_PATTERN', '/^https:\/\/apps\.apple\.com/');
 define('DBRE_ANDROID_URL_PATTERN', '/^https:\/\/play\.google\.com/');
 // Option names
 define('DBRE_SETTINGS_KEY', 'dbre_entries');
+define('DBRE_DB_VERSION', '1.0');
 
 // Validation helper class
 class DBRE_Validator {
@@ -118,12 +151,10 @@ function dbre_settings_page() {
 }
 
 function dbre_scripts($hook) {
-    // Only load on our plugin's page
     if ($hook !== 'settings_page_device-redirects') {
         return;
     }
 
-    // Enqueue React and our plugin's scripts
     wp_enqueue_script(
         'device-redirect-react',
         plugins_url('build/index.js', __FILE__),
@@ -132,15 +163,6 @@ function dbre_scripts($hook) {
         true
     );
 
-    // Get all saved settings
-    $saved_settings = get_option(DBRE_SETTINGS_KEY, []);
-    
-    // Ensure we're passing a proper array
-    if (!is_array($saved_settings)) {
-        $saved_settings = [];
-    }
-
-    // Get all pages for the dropdown
     $all_pages = get_pages();
     $formatted_pages = array_map(function($page) {
         return [
@@ -150,7 +172,6 @@ function dbre_scripts($hook) {
         ];
     }, $all_pages);
 
-    // Pass data to JavaScript
     wp_localize_script('device-redirect-react', 'deviceRedirectData', [
         'nonce' => wp_create_nonce('device_redirect_nonce'),
         'ajaxUrl' => admin_url('admin-ajax.php'),
@@ -158,7 +179,6 @@ function dbre_scripts($hook) {
         'restNonce' => wp_create_nonce('wp_rest'),
         'homeUrl' => home_url(),
         'pages' => $formatted_pages,
-        'settings' => $saved_settings,
         'pluginUrl' => plugins_url('', __FILE__),
     ]);
 }
@@ -170,52 +190,101 @@ function dbre_save_settings() {
         wp_send_json_error('Unauthorized', 403);
     }
 
-    // Validate that settings exist in POST data
     if (!isset($_POST['settings'])) {
         wp_send_json_error('No settings data provided', 400);
     }
 
-    // Unslash and decode JSON data
     $raw_settings = sanitize_text_field(wp_unslash($_POST['settings']));
     $settings = json_decode($raw_settings, true);
 
-    // Validate JSON decode
     if (json_last_error() !== JSON_ERROR_NONE) {
         wp_send_json_error('Invalid JSON data', 400);
     }
 
-    // Validate settings is an array
     if (!is_array($settings)) {
         wp_send_json_error('Invalid settings format', 400);
     }
 
-    // Sanitize settings
-    $sanitized_settings = [];
-    foreach ($settings as $key => $value) {
-        // Sanitize the key
-        $safe_key = sanitize_text_field($key);
-        
-        if (!is_array($value)) {
-            continue;
+    global $wpdb;
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
+    $wpdb->query('START TRANSACTION');
+
+    try {
+        $saved_entries = [];
+        $deleted_count = 0;
+
+        foreach ($settings as $key => $value) {
+            // Use the type from the data instead of inferring from key
+            $type = isset($value['type']) ? $value['type'] : 'custom';
+            
+            $redirect_data = [
+                'type' => $type,
+                'reference_id' => $key,
+                'ios_url' => isset($value['ios_url']) ? esc_url_raw($value['ios_url']) : '',
+                'android_url' => isset($value['android_url']) ? esc_url_raw($value['android_url']) : '',
+                'backup_url' => isset($value['backup_url']) ? esc_url_raw($value['backup_url']) : '',
+                'enabled' => isset($value['enabled']) ? (bool)$value['enabled'] : false
+            ];
+
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
+            $existing = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT id FROM {$wpdb->prefix}dbre_redirects   WHERE type = %s AND reference_id = %s",
+                    array($type, $key)
+                )
+            );
+
+            if ($existing) {
+                $redirect_data['id'] = $existing->id;
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
+                $wpdb->update(dbre_get_table_name(), $redirect_data, ['id' => $existing->id]);
+                $saved_id = $existing->id;
+            } else {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
+                $wpdb->insert(dbre_get_table_name(), $redirect_data);
+                $saved_id = $wpdb->insert_id;
+            }
+
+            // Build the query with escaped table name and prepare the ID
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
+            $saved_entry = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT * FROM {$wpdb->prefix}dbre_redirects  WHERE id = %d",
+                    $saved_id
+                ),
+                ARRAY_A
+            );
+            
+            if ($saved_entry) {
+                $saved_entries[] = $saved_entry;
+            }
         }
 
-        // Sanitize each setting's values - only basic URL sanitization
-        $sanitized_settings[$safe_key] = [
-            'ios_url' => isset($value['ios_url']) ? esc_url_raw($value['ios_url']) : '',
-            'android_url' => isset($value['android_url']) ? esc_url_raw($value['android_url']) : '',
-            'backup_url' => isset($value['backup_url']) ? esc_url_raw($value['backup_url']) : '',
-            'enabled' => isset($value['enabled']) ? (bool)$value['enabled'] : false
-        ];
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
+        $wpdb->query('COMMIT');
+      
+        // Clear Transients
+        foreach ($settings as $key => $value) {
+            if ($value['type'] === 'page') {
+                delete_transient('dbre_redirect_' . $key);
+            } else {
+                delete_transient('dbre_custom_redirect_' . md5($key));
+            }
+        }
+
+        wp_send_json_success([
+            'message' => $deleted_count > 0 ? 
+                        "Successfully deleted {$deleted_count} redirects" : 
+                        'Settings saved successfully!',
+            'type' => 'success',
+            'entries' => $saved_entries,
+            'deleted_count' => $deleted_count
+        ]);
+    } catch (Exception $e) {
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
+        $wpdb->query('ROLLBACK');
+        wp_send_json_error('Save failed: ' . $e->getMessage());
     }
-
-    // Save the sanitized settings
-    update_option(DBRE_SETTINGS_KEY, $sanitized_settings);
-
-    wp_send_json_success([
-        'message' => 'Settings saved successfully!',
-        'type' => 'success',
-        'settings' => $sanitized_settings
-    ]);
 }
 
 
@@ -224,76 +293,65 @@ function dbre_save_settings() {
 // ===============================================
 function dbre_redirect_logic() {
     try {
-        // Get the redirection settings for pages and slugs
-        $redirect_pages = get_option(DBRE_SETTINGS_KEY, []);
-        if (empty($redirect_pages) || !is_array($redirect_pages)) {
-            return;
-        }
-
         $current_page_id = get_the_ID();
-        $current_url = home_url(add_query_arg(NULL, NULL));
-        //$current_slug = isset($_SERVER['REQUEST_URI']) ? trim(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])), '/') : '';
-        $current_slug = '';
-        if (isset($_SERVER['REQUEST_URI'])) {
-            $request_path = trim(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])), '/');
-            $site_path = wp_parse_url(site_url(), PHP_URL_PATH);
-            $site_path = $site_path ? trim($site_path, '/') : '';
-            
-            if ($site_path && strpos($request_path, $site_path) === 0) {
-                $current_slug = substr($request_path, strlen($site_path) + 1);
-            } else {
-                $current_slug = $request_path;
-            }
+        $current_url = get_permalink($current_page_id);
+
+        // Get cached redirect for this page
+        $cache_key = 'dbre_redirect_' . $current_page_id;
+        $redirect = get_transient($cache_key);
+
+        if (false === $redirect) {
+            global $wpdb;
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
+            $redirect = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT * FROM {$wpdb->prefix}dbre_redirects 
+                    WHERE type = 'page' 
+                    AND reference_id = %s 
+                    AND enabled = 1",
+                    $current_page_id
+                ),
+                ARRAY_A
+            );
+         
+            set_transient($cache_key, $redirect, 3600);
         }
-        foreach ($redirect_pages as $page_id_or_slug => $settings) {
-            // Validate settings
-            if (!is_array($settings)) {
-                continue;
-            }
 
-            // Skip if redirection is not enabled for this entry
-            if (empty($settings['enabled'])) {
-                continue;
-            }
+        if ($redirect && (!empty($redirect['ios_url']) || !empty($redirect['android_url']))) {
+            // Enqueue the redirect script
+            wp_enqueue_script(
+                'device-redirect-front',
+                plugins_url('js/redirect.js', __FILE__),
+                array(),
+                DBRE_VERSION,
+                true
+            );
 
-            $is_page_redirect = is_numeric($page_id_or_slug) && $page_id_or_slug == $current_page_id;
+            // Pass configuration to script
+            wp_localize_script(
+                'device-redirect-front',
+                'deviceRedirectConfig',
+                array(
+                    'ios' => esc_js($redirect['ios_url']),
+                    'android' => esc_js($redirect['android_url']),
+                    'backup' => esc_js($redirect['backup_url']),
+                    'current' => esc_js($current_url)
+                )
+            );
 
-            if ($is_page_redirect) {
-                // Sanitize URLs
-                $ios_url = !empty($settings['ios_url']) ? esc_url($settings['ios_url']) : '';
-                $android_url = !empty($settings['android_url']) ? esc_url($settings['android_url']) : '';
-                $backup_url = !empty($settings['backup_url']) ? esc_url($settings['backup_url']) : '';
-
-                // Only proceed if we have URLs to redirect to
-                if (!empty($ios_url) || !empty($android_url)) {
-                    // Enqueue the redirect script
-                    wp_enqueue_script(
-                        'device-redirect-front',
-                        plugins_url('js/redirect.js', __FILE__),
-                        array(),
-                        DBRE_VERSION,
-                        true
-                    );
-
-                    // Pass configuration to script
-                    wp_localize_script(
-                        'device-redirect-front',
-                        'deviceRedirectConfig',
-                        array(
-                            'ios' => esc_js($ios_url),
-                            'android' => esc_js($android_url),
-                            'backup' => esc_js($backup_url),
-                            'current' => esc_js($current_url)
-                        )
-                    );
+        }else{
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                // Using wp_debug_log is preferred when available
+                if (function_exists('wp_debug_log')) {
+                    wp_debug_log('No valid redirect found or URLs empty');
                 }
-                break;
             }
         }
     } catch (Exception $e) {
-        // Log error if WP_DEBUG is enabled
         if (defined('WP_DEBUG') && WP_DEBUG) {
-            wp_log_error('Device Redirect Error: ' . $e->getMessage());
+            if (function_exists('wp_debug_log')) {
+                wp_debug_log('Device Redirect Error: ' . $e->getMessage());
+            }
         }
     }
 }
@@ -313,9 +371,85 @@ add_action('rest_api_init', function () {
             ),
         ),
     ));
+
+    // Add new REST API endpoint for paginated list
+    register_rest_route('device-redirect/v1', '/redirects', array(
+        'methods' => 'GET',
+        'callback' => 'dbre_get_redirects_paginated',
+        'permission_callback' => function() {
+            return current_user_can('manage_options');
+        },
+        'args' => array(
+            'page' => array(
+                'default' => 1,
+                'sanitize_callback' => 'absint',
+            ),
+            'per_page' => array(
+                'default' => 10,
+                'sanitize_callback' => 'absint',
+            ),
+            'type' => array(
+                'default' => 'all',
+                'sanitize_callback' => 'sanitize_text_field',
+            ),
+            'search' => array(
+                'default' => '',
+                'sanitize_callback' => 'sanitize_text_field',
+            ),
+            'reference_id' => array(
+                'default' => '',
+                'sanitize_callback' => 'sanitize_text_field',
+            ),
+        ),
+    ));
+
+    // Add this to the rest_api_init action
+    register_rest_route('device-redirect/v1', '/delete', array(
+        'methods' => 'POST',
+        'callback' => 'dbre_handle_delete',
+        'permission_callback' => function() {
+            return current_user_can('manage_options');
+        },
+        'args' => array(
+            'items' => array(
+                'required' => true,
+                'type' => 'array',
+                'items' => array(
+                    'type' => 'object',
+                    'properties' => array(
+                        'id' => array('type' => 'integer'),
+                        'type' => array('type' => 'string'),
+                        'reference_id' => array('type' => 'string')
+                    )
+                )
+            ),
+        ),
+    ));
+
+    // Add this inside the rest_api_init action callback, along with other endpoints
+    register_rest_route('device-redirect/v1', '/entry', array(
+        'methods' => 'GET',
+        'callback' => 'dbre_get_entry',
+        'permission_callback' => function() {
+            return current_user_can('manage_options');
+        },
+        'args' => array(
+            'type' => array(
+                'required' => true,
+                'type' => 'string',
+                'enum' => ['page', 'custom'],
+            ),
+            'reference_id' => array(
+                'required' => true,
+                'type' => 'string',
+            ),
+        ),
+    ));
 });
 
 function dbre_validate_slug($request) {
+    global $wpdb;
+    
     $slug = strtolower(trim($request->get_param('slug')));
     
     // Check WordPress posts and pages
@@ -341,48 +475,66 @@ function dbre_validate_slug($request) {
         }
     }
     
-    // Get current redirect settings
-    $redirect_pages = get_option(DBRE_SETTINGS_KEY, []);
-    
+
     // Check existing redirects
-    foreach ($redirect_pages as $existing_slug => $settings) {
-        if (!is_numeric($existing_slug) && strtolower($existing_slug) === $slug) {
-            return new WP_Error(
-                'slug_exists',
-                'This slug is already used by a redirect',
-                ['status' => 400]
-            );
-        }
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
+    $existing_redirect = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}dbre_redirects  WHERE type = 'custom' AND reference_id = %s",
+            $slug
+        )
+    );
+    
+    if ($existing_redirect) {
+        return new WP_Error(
+            'slug_exists',
+            'This slug is already used by a redirect',
+            ['status' => 400]
+        );
     }
     
     return ['available' => true];
 }
 
 function dbre_handle_slug_conflicts($slug, $post_ID, $post_status, $post_type, $post_parent, $original_slug) {
-    $redirect_pages = get_option(DBRE_SETTINGS_KEY, []);
+    global $wpdb;
     
-    foreach ($redirect_pages as $existing_slug => $settings) {
-        if (!is_numeric($existing_slug) && strtolower($existing_slug) === strtolower($slug)) {
-            // Get all existing posts/pages
-            global $wpdb;
-            $suffix = 1;
-            
-            do {
-                $alt_slug = $original_slug . "-$suffix";
-                $post_name_check = $wpdb->get_var($wpdb->prepare("SELECT post_name FROM $wpdb->posts WHERE post_name LIKE %s AND ID != %d", $alt_slug, $post_ID));
-                $suffix++;
-            } while ($post_name_check);
-            
-            return $alt_slug;
-        }
+    // Check if slug exists in redirects
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
+    $existing = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}dbre_redirects 
+            WHERE type = 'custom' AND reference_id = %s",
+            $slug
+        )
+    );
+    
+    if ($existing) {
+        $suffix = 1;
+        do {
+            $alt_slug = $original_slug . "-$suffix";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
+            $post_name_check = $wpdb->get_var(
+                $wpdb->prepare(
+                    "SELECT post_name FROM $wpdb->posts 
+                    WHERE post_name = %s AND ID != %d",
+                    $alt_slug,
+                    $post_ID
+                )
+            );
+            $suffix++;
+        } while ($post_name_check);
+        
+        return $alt_slug;
     }
+    
     return $slug;
 }
 
 function dbre_handle_custom_slugs($wp) {
+    global $wpdb;
 
-
-    // Get current slug using wp_parse_url
+    // Get current slug
     $request_path = isset($_SERVER['REQUEST_URI']) ? 
         trim(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])), '/') : '';
     $site_path = wp_parse_url(site_url(), PHP_URL_PATH);
@@ -395,68 +547,75 @@ function dbre_handle_custom_slugs($wp) {
         $current_slug = $request_path;
     }
 
-    // Check redirects
-    $redirect_pages = get_option(DBRE_SETTINGS_KEY, []);
-    foreach ($redirect_pages as $page_id_or_slug => $settings) {
-        if (!is_numeric($page_id_or_slug) && 
-            $page_id_or_slug === $current_slug && 
-            !empty($settings['enabled'])) {
+    // Try to get from cache first
+    $cache_key = 'dbre_custom_redirect_' . md5($current_slug);
+    $redirect = get_transient($cache_key);
+    
+    if (false === $redirect) {
+        global $wpdb;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
+        $redirect = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}dbre_redirects 
+                WHERE type = 'custom' 
+                AND reference_id = %s 
+                AND enabled = 1",
+                $current_slug
+            ),
+            ARRAY_A
+        );
+        
+        // Cache for 1 hour
+        set_transient($cache_key, $redirect, 3600);
+    }
 
-            // Get device type - properly sanitized and unslashed
-            $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? 
-                sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
+    if ($redirect) {
+        // Get device type
+        $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? 
+            sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
+        
+        $is_ios = preg_match('/(ipad|iphone|ipod)/i', $user_agent);
+        $is_android = preg_match('/android/i', $user_agent);
+        
+        $has_relevant_store_url = ($is_ios && !empty($redirect['ios_url'])) || 
+                                ($is_android && !empty($redirect['android_url']));
+
+        if (($is_ios || $is_android) && $has_relevant_store_url) {
+            wp_register_script(
+                'device-redirect-front',
+                plugins_url('js/redirect.js', __FILE__),
+                array(),
+                DBRE_VERSION,
+                false
+            );
+
+            wp_localize_script(
+                'device-redirect-front',
+                'deviceRedirectConfig',
+                array(
+                    'ios' => esc_url($redirect['ios_url']),
+                    'android' => esc_url($redirect['android_url']),
+                    'backup' => esc_url($redirect['backup_url']),
+                    'current' => esc_url(home_url(add_query_arg(NULL, NULL)))
+                )
+            );
+
+            wp_enqueue_script('device-redirect-front');
+
+            add_filter('template_include', function($template) {
+                return plugin_dir_path(__FILE__) . 'templates/redirect-template.php';
+            }, 999);
             
-            $is_ios = preg_match('/(ipad|iphone|ipod)/i', $user_agent);
-            $is_android = preg_match('/android/i', $user_agent);
-            
-            // Check if relevant store URL exists for the device
-            $has_relevant_store_url = ($is_ios && !empty($settings['ios_url'])) || 
-                                    ($is_android && !empty($settings['android_url']));
+            return;
+        }
 
-            // If it's a mobile device and has relevant store URL
-            if (($is_ios || $is_android) && $has_relevant_store_url) {
-            
-                // First localize the script with the configuration
-                wp_register_script(
-                    'device-redirect-front',
-                    plugins_url('js/redirect.js', __FILE__),
-                    array(),
-                    DBRE_VERSION,
-                    false
-                );
-
-                // Pass configuration to script
-                wp_localize_script(
-                    'device-redirect-front',
-                    'deviceRedirectConfig',
-                    array(
-                        'ios' => esc_url($settings['ios_url'] ?? ''),
-                        'android' => esc_url($settings['android_url'] ?? ''),
-                        'backup' => esc_url($settings['backup_url'] ?? ''),
-                        'current' => esc_url(home_url(add_query_arg(NULL, NULL)))
-                    )
-                );
-
-                // Now enqueue the script
-                wp_enqueue_script('device-redirect-front');
-
-                // Use our custom template with correct path
-                add_filter('template_include', function($template) {
-                    return plugin_dir_path(__FILE__) . 'templates/redirect-template.php';
-                }, 999);
-                
-                return;
-            }
-
-            // For all other cases (non-mobile or no relevant store URL)
-            if (!empty($settings['backup_url'])) {
-                wp_redirect(esc_url($settings['backup_url']));
-                exit;
-            } else {
-                // No backup URL, redirect to homepage
-                wp_redirect(home_url());
-                exit;
-            }
+        // For non-mobile or no relevant store URL
+        if (!empty($redirect['backup_url'])) {
+            wp_redirect(esc_url($redirect['backup_url']), 302);
+            exit;
+        } else {
+            wp_redirect(home_url(), 302);
+            exit;
         }
     }
 }
@@ -467,7 +626,8 @@ function dbre_modify_redirect_canonical() {
 }
 
 function dbre_prevent_old_slug_redirect($redirect_url, $requested_url) {
-    // Get current slug using wp_parse_url
+    global $wpdb;
+    
     $request_path = isset($_SERVER['REQUEST_URI']) ? 
         trim(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])), '/') : '';
     $site_path = wp_parse_url(site_url(), PHP_URL_PATH);
@@ -480,20 +640,282 @@ function dbre_prevent_old_slug_redirect($redirect_url, $requested_url) {
         $current_slug = $request_path;
     }
 
-    // Remove query strings if any
+    // Remove query strings
     $current_slug = strtok($current_slug, '?');
 
-    // Check if this slug exists in our redirects
-    $redirect_pages = get_option(DBRE_SETTINGS_KEY, []);
-    foreach ($redirect_pages as $page_id_or_slug => $settings) {
-        if (!is_numeric($page_id_or_slug) && 
-            $page_id_or_slug === $current_slug && 
-            !empty($settings['enabled'])) {
-            // Return false to prevent WordPress's redirect
-            return false;
+    // Check if slug exists in redirects
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
+    $exists = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}dbre_redirects 
+            WHERE type = 'custom' 
+            AND reference_id = %s 
+            AND enabled = 1",
+            $current_slug
+        )
+    );
+    
+    return $exists ? false : $redirect_url;
+}
+
+// Add migration function
+function dbre_run_migration() {
+    global $wpdb;
+    
+    // Check if migration is needed
+    if (get_option('dbre_migration_complete')) {
+        return;
+    }
+
+    // Get old data from wp_options
+    $old_settings = get_option(DBRE_SETTINGS_KEY, []);
+    
+    if (!empty($old_settings)) {
+        foreach ($old_settings as $key => $value) {
+            $post = get_post($key);
+            $type = $post ? 'page' : 'custom';
+            $reference_id = $key;
+
+            // Insert into new table
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
+            $wpdb->insert(
+                dbre_get_table_name(),
+                [
+                    'type' => $type,
+                    'reference_id' => $reference_id,
+                    'ios_url' => $value['ios_url'] ?? null,
+                    'android_url' => $value['android_url'] ?? null,
+                    'backup_url' => $value['backup_url'] ?? null,
+                    'enabled' => !empty($value['enabled']) ? 1 : 0,
+                    'created_at' => current_time('mysql'),
+                    'updated_at' => current_time('mysql'),
+                    'order' => 0
+                ],
+                [
+                    '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%d'
+                ]
+            );
         }
     }
 
-    return $redirect_url;
+    // Mark migration as complete
+    update_option('dbre_migration_complete', true);
+    
+    // Optionally, delete old option (you might want to keep it for backup)
+    // delete_option(DBRE_SETTINGS_KEY);
 }
 
+// Add new DB helper functions - Used for Clearing Transients during Deactivation
+function dbre_get_redirects() {
+    global $wpdb;
+        
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
+    $results = $wpdb->get_results(
+        "SELECT * FROM {$wpdb->prefix}dbre_redirects  ORDER BY `order` ASC",
+        ARRAY_A
+    );
+
+    return $results ?: [];
+}
+
+function dbre_get_table_name() {
+    global $wpdb;
+    return $wpdb->prefix . 'dbre_redirects';
+}
+
+function dbre_get_redirects_paginated($request) {
+    global $wpdb;
+    $page = $request->get_param('page');
+    $per_page = $request->get_param('per_page');
+    $type = $request->get_param('type');
+    $reference_id = $request->get_param('reference_id');
+
+    $offset = ($page - 1) * $per_page;
+    
+    if ($type && $type !== 'all') {
+        // Query with type filter
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $total_items = (int)$wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->prefix}dbre_redirects WHERE type = %s",
+                $type
+            )
+        );
+        
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $results = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}dbre_redirects WHERE type = %s ORDER BY created_at DESC LIMIT %d OFFSET %d",
+                $type, $per_page, $offset
+            ),
+            ARRAY_A
+        );
+    } elseif ($reference_id !== '') {
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $total_items = (int)$wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->prefix}dbre_redirects WHERE reference_id = %s",
+                $reference_id
+            )
+        );
+        
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $results = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}dbre_redirects WHERE reference_id = %s ORDER BY created_at DESC LIMIT %d OFFSET %d",
+                $reference_id, $per_page, $offset
+            ),
+            ARRAY_A
+        );
+    } else {
+        // No type filter, get all records
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $total_items = (int)$wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}dbre_redirects"
+        );
+        
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $results = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}dbre_redirects ORDER BY created_at DESC LIMIT %d OFFSET %d",
+                $per_page, $offset
+            ),
+            ARRAY_A
+        );
+    }
+    
+    // Format results for frontend
+    $formatted_results = array_map(function($item) {
+        $formatted = [
+            'id' => (int)$item['id'],
+            'type' => $item['type'],
+            'reference_id' => $item['reference_id'],
+            'iosUrl' => $item['ios_url'],
+            'androidUrl' => $item['android_url'],
+            'backupUrl' => $item['backup_url'],
+            'enabled' => (bool)$item['enabled'],
+            'updatedAt' => $item['updated_at']
+        ];
+
+        if ($item['type'] === 'page') {
+            $page = get_post($item['reference_id']);
+            $formatted['displayTitle'] = $page ? $page->post_title : $item['reference_id'];
+            $formatted['displayUrl'] = $page ? get_permalink($page->ID) : home_url($item['reference_id']);
+        } else {
+            $formatted['displayTitle'] = $item['reference_id'];
+            $formatted['displayUrl'] = home_url($item['reference_id']);
+        }
+
+        return $formatted;
+    }, $results ?: []);
+
+    $total_pages = ceil($total_items / $per_page);
+
+    return new WP_REST_Response([
+        'items' => $formatted_results,
+        'total' => $total_items,
+        'pages' => $total_pages
+    ], 200);
+}
+
+// Function to handle delete requests
+function dbre_handle_delete($request) {
+    global $wpdb;
+    $items = $request->get_param('items');
+    
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+    $wpdb->query('START TRANSACTION');
+    
+    try {
+        $deleted_count = 0;
+        foreach ($items as $item) {
+            // Delete using ID
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $result = $wpdb->delete(
+                dbre_get_table_name(),
+                ['id' => $item['id']],
+                ['%d']
+            );
+
+            if ($result) {
+                // Clear transients based on type from request
+                if ($item['type'] === 'page') {
+                    delete_transient('dbre_redirect_' . $item['reference_id']);
+                } else {
+                    delete_transient('dbre_custom_redirect_' . md5($item['reference_id']));
+                }
+                $deleted_count++;
+            }
+        }
+        
+        if ($deleted_count === count($items)) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->query('COMMIT');
+            return new WP_REST_Response([
+                'success' => true,
+                'message' => sprintf('%d redirect(s) deleted successfully', $deleted_count)
+            ], 200);
+        } else {
+            throw new Exception('Some redirects could not be deleted');
+        }
+    } catch (Exception $e) {
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $wpdb->query('ROLLBACK');
+        return new WP_Error(
+            'delete_failed',
+            $e->getMessage(),
+            array('status' => 500)
+        );
+    }
+}
+
+// Function to get Redirect Entry by Type and Reference ID
+function dbre_get_entry($request) {
+    global $wpdb;
+    
+    $type = sanitize_text_field($request->get_param('type'));
+    $reference_id = sanitize_text_field($request->get_param('reference_id'));
+    
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+    $entry = $wpdb->get_row(
+        $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}dbre_redirects WHERE type = %s AND reference_id = %s",
+            $type,
+            $reference_id
+        ),
+        ARRAY_A
+    );
+    
+    if (!$entry) {
+        return new WP_REST_Response([
+            'exists' => false,
+            'message' => 'Entry not found'
+        ], 200);
+    }
+    
+    // Format the entry similar to the list endpoint
+    $formatted = [
+        'id' => (int)$entry['id'],
+        'type' => $entry['type'],
+        'reference_id' => $entry['reference_id'],
+        'iosUrl' => $entry['ios_url'],
+        'androidUrl' => $entry['android_url'],
+        'backupUrl' => $entry['backup_url'],
+        'enabled' => (bool)$entry['enabled'],
+        'updatedAt' => $entry['updated_at']
+    ];
+    
+    if ($entry['type'] === 'page') {
+        $page = get_post($entry['reference_id']);
+        $formatted['displayTitle'] = $page ? $page->post_title : $entry['reference_id'];
+        $formatted['displayUrl'] = $page ? get_permalink($page->ID) : home_url($entry['reference_id']);
+    } else {
+        $formatted['displayTitle'] = $entry['reference_id'];
+        $formatted['displayUrl'] = home_url($entry['reference_id']);
+    }
+    
+    return new WP_REST_Response([
+        'exists' => true,
+        'entry' => $formatted
+    ], 200);
+}
