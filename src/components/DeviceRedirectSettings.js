@@ -13,46 +13,39 @@ const ToggleSwitch = ({ enabled, onChange, small = false }) => (
 );
 
 const DeviceRedirectSettings = () => {
-    const [pageRedirects, setPageRedirects] = useState([]);
-    const [slugRedirects, setSlugRedirects] = useState([]);
-    const [selectedPage, setSelectedPage] = useState('');
-    const [newSlug, setNewSlug] = useState('');
-    const [error, setError] = useState({ type: '', message: '' });
-    const [notification, setNotification] = useState(null);
-    const [urlValidationErrors, setUrlValidationErrors] = useState({});
-    const [editingRedirects, setEditingRedirects] = useState({});
-    const [editingValues, setEditingValues] = useState({});
-    const [selectedItems, setSelectedItems] = useState([]);
-    const [selectAll, setSelectAll] = useState(false);
-    const [bulkAction, setBulkAction] = useState('');
-    const [typeFilter, setTypeFilter] = useState('all');
-    const [addRedirectType, setAddRedirectType] = useState('page');
-    const [newRedirectUrls, setNewRedirectUrls] = useState({
-      iosUrl: '',
-      androidUrl: '',
-      backupUrl: ''
-    });
-    const [formNotification, setFormNotification] = useState(null);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [perPage, setPerPage] = useState(10);
-    const [totalPages, setTotalPages] = useState(1);
-    const [totalItems, setTotalItems] = useState(0);
-    const [redirects, setRedirects] = useState([]);
-    const [loading, setLoading] = useState(true);
+  // Get initial type and page from URL
+  const params = new URLSearchParams(window.location.search);
+  const initialType = params.get('type') || 'all';
+  const initialPage = parseInt(params.get('page_num')) || 1;
+  // State variables
+  const [pageRedirects, setPageRedirects] = useState([]);
+  const [slugRedirects, setSlugRedirects] = useState([]);
+  const [selectedPage, setSelectedPage] = useState('');
+  const [newSlug, setNewSlug] = useState('');
+  const [error, setError] = useState({ type: '', message: '' });
+  const [notification, setNotification] = useState(null);
+  const [urlValidationErrors, setUrlValidationErrors] = useState({});
+  const [editingRedirects, setEditingRedirects] = useState({});
+  const [editingValues, setEditingValues] = useState({});
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
+  const [bulkAction, setBulkAction] = useState('');
+  const [typeFilter, setTypeFilter] = useState(initialType);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const pageParam = parseInt(params.get('page_num')) || 1;
-    const typeParam = params.get('type') || 'all';
-    
-    // Set both states in a single batch update
-    Promise.resolve().then(() => {
-        setCurrentPage(pageParam);
-        setTypeFilter(typeParam);
-    });
-  }, []);
+  const [addRedirectType, setAddRedirectType] = useState('page');
+  const [newRedirectUrls, setNewRedirectUrls] = useState({
+    iosUrl: '',
+    androidUrl: '',
+    backupUrl: ''
+  });
+  const [formNotification, setFormNotification] = useState(null);
+  const [currentPage, setCurrentPage] = useState(initialPage);
+  const [perPage, setPerPage] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [redirects, setRedirects] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Load initial data
   useEffect(() => {
     // Clear selections when changing pages
     setSelectedItems([]);
@@ -695,48 +688,50 @@ const validateNewUrls = () => {
   return errors;
 };
 
-// Add a new function to handle resetting and reloading
+// New function to handle resetting and reloading
 const resetAndReload = async () => {
     // First remove the typeFilter from useEffect dependencies
     // to prevent double loading
     const currentFilter = typeFilter;
+    updateURL(1, 'all');
     setTypeFilter('all');
     setCurrentPage(1);
-    
+    if(currentFilter == 'all' && currentPage == 1){
     // Manually load with reset values
-    try {
-        setLoading(true);
-        const response = await fetch(
-            `${deviceRedirectData.restUrl}device-redirect/v1/redirects?` + 
-            new URLSearchParams({
-                page: 1,
-                per_page: perPage,
-                type: 'all',
-            }),
-            {
-                headers: {
-                    'X-WP-Nonce': deviceRedirectData.restNonce
-                }
-            }
-        );
+      try {
+          setLoading(true);
+          const response = await fetch(
+              `${deviceRedirectData.restUrl}device-redirect/v1/redirects?` + 
+              new URLSearchParams({
+                  page: 1,
+                  per_page: perPage,
+                  type: 'all',
+              }),
+              {
+                  headers: {
+                      'X-WP-Nonce': deviceRedirectData.restNonce
+                  }
+              }
+          );
 
-        if (!response.ok) {
-            throw new Error('Failed to load redirects');
-        }
+          if (!response.ok) {
+              throw new Error('Failed to load redirects');
+          }
 
-        const data = await response.json();
-        setRedirects(data.items);
-        setTotalPages(data.pages);
-        setTotalItems(data.total);
-    } catch (error) {
-        setNotification({
-            message: `Error loading redirects: ${error.message}`,
-            type: 'error'
-        });
-        // Restore previous filter if load fails
-        setTypeFilter(currentFilter);
-    } finally {
-        setLoading(false);
+          const data = await response.json();
+          setRedirects(data.items);
+          setTotalPages(data.pages);
+          setTotalItems(data.total);
+      } catch (error) {
+          setNotification({
+              message: `Error loading redirects: ${error.message}`,
+              type: 'error'
+          });
+          // Restore previous filter if load fails
+          setTypeFilter(currentFilter);
+      } finally {
+          setLoading(false);
+      }
     }
 };
 
