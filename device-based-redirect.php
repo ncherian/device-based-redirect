@@ -591,10 +591,10 @@ function dbre_handle_custom_slugs($wp) {
 
         // For non-mobile or no relevant store URL
         if (!empty($redirect['backup_url'])) {
-            wp_redirect(esc_url($redirect['backup_url']));
+            wp_redirect(esc_url($redirect['backup_url']), 302);
             exit;
         } else {
-            wp_redirect(home_url());
+            wp_redirect(home_url(), 302);
             exit;
         }
     }
