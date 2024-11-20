@@ -3,7 +3,7 @@
 Plugin Name: Device Based Redirect
 Plugin URI:  https://github.com/ncherian/device-based-redirect
 Description: A plugin that redirects users to the App Store or Google Play Store based on their device type (iOS/Android), with options to select the page and set URLs in the admin dashboard.
-Version:     1.0.0
+Version:     1.1.0
 Author:      Indimakes
 Author URI:  https://indimakes.com
 License:     GPL2
@@ -87,54 +87,6 @@ define('DBRE_ANDROID_URL_PATTERN', '/^https:\/\/play\.google\.com/');
 // Option names
 define('DBRE_SETTINGS_KEY', 'dbre_entries');
 define('DBRE_DB_VERSION', '1.0');
-
-// Validation helper class
-class DBRE_Validator {
-    public static function is_valid_store_url($url, $type) {
-        if (empty($url)) {
-            return false;
-        }
-
-        $url = esc_url_raw($url);
-
-        switch ($type) {
-            case 'ios':
-                return (bool) preg_match(DBRE_IOS_URL_PATTERN, $url);
-            case 'android':
-                return (bool) preg_match(DBRE_ANDROID_URL_PATTERN, $url);
-            default:
-                return false;
-        }
-    }
-
-    public static function sanitize_settings($settings) {
-        if (!is_array($settings)) {
-            return [];
-        }
-
-        $sanitized = [];
-        foreach ($settings as $key => $value) {
-            if (!is_array($value)) {
-                continue;
-            }
-
-            $safe_key = sanitize_text_field($key);
-            $sanitized[$safe_key] = [
-                'ios_url' => self::sanitize_store_url($value['ios_url'] ?? '', 'ios'),
-                'android_url' => self::sanitize_store_url($value['android_url'] ?? '', 'android'),
-                'backup_url' => isset($value['backup_url']) ? esc_url_raw($value['backup_url']) : '',
-                'enabled' => isset($value['enabled']) ? (bool)$value['enabled'] : false
-            ];
-        }
-
-        return $sanitized;
-    }
-
-    private static function sanitize_store_url($url, $type) {
-        $url = esc_url_raw($url);
-        return self::is_valid_store_url($url, $type) ? $url : '';
-    }
-}
 
 function dbre_menu() {
     add_options_page(
