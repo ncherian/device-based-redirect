@@ -3,7 +3,7 @@
 Plugin Name: Device Based Redirect
 Plugin URI:  https://github.com/ncherian/device-based-redirect
 Description: A plugin that redirects users to the App Store or Google Play Store based on their device type (iOS/Android), with options to select the page and set URLs in the admin dashboard.
-Version:     1.1.0
+Version:     1.1.1
 Author:      Indimakes
 Author URI:  https://indimakes.com
 License:     GPL2
@@ -19,38 +19,50 @@ if (!defined('ABSPATH')) {
 // Plugin Activation/Deactivation
 // ===============================================
 
-register_activation_hook(__FILE__, 'dbre_activate');
 register_deactivation_hook(__FILE__, 'dbre_deactivate');
+add_action('plugins_loaded', 'dbre_check_version');
 
-function dbre_activate() {
-    global $wpdb;
-    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+// Check Version and Run Migration if needed
+function dbre_check_version() {
+    $current_version = get_option('dbre_version', '0');
+    $current_db_version = get_option('dbre_db_version', '0');
+    
+    // Check if this is a new installation or upgrade
+    if (version_compare($current_version, DBRE_VERSION, '<') || 
+        version_compare($current_db_version, DBRE_DB_VERSION, '<')) {
+        
+        // Ensure the table exists
+        global $wpdb;
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
 
-    // Create redirects table
-    $redirects_sql = "CREATE TABLE IF NOT EXISTS " . dbre_get_table_name() . " (
-        `id` bigint(20) NOT NULL AUTO_INCREMENT,
-        `type` enum('page', 'custom') NOT NULL,
-        `reference_id` varchar(191) NOT NULL,
-        `ios_url` text DEFAULT NULL,
-        `android_url` text DEFAULT NULL,
-        `backup_url` text DEFAULT NULL,
-        `enabled` tinyint(1) DEFAULT 0,
-        `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
-        `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        `order` int(11) DEFAULT 0,
-        PRIMARY KEY (`id`),
-        UNIQUE KEY `type_reference` (`type`, `reference_id`),
-        KEY `enabled` (`enabled`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
+        // Create redirects table if it doesn't exist
+        $redirects_sql = "CREATE TABLE IF NOT EXISTS " . dbre_get_table_name() . " (
+            `id` bigint(20) NOT NULL AUTO_INCREMENT,
+            `type` enum('page', 'custom') NOT NULL,
+            `reference_id` varchar(191) NOT NULL,
+            `ios_url` text DEFAULT NULL,
+            `android_url` text DEFAULT NULL,
+            `backup_url` text DEFAULT NULL,
+            `enabled` tinyint(1) DEFAULT 0,
+            `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            `order` int(11) DEFAULT 0,
+            PRIMARY KEY (`id`),
+            UNIQUE KEY `type_reference` (`type`, `reference_id`),
+            KEY `enabled` (`enabled`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
 
-    dbDelta($redirects_sql);
+        dbDelta($redirects_sql);
 
-    // Run migration if needed
-    dbre_run_migration();
+        // Run migration if needed
+        if (version_compare($current_db_version, DBRE_DB_VERSION, '<')) {
+            dbre_run_migration();
+            update_option('dbre_db_version', DBRE_DB_VERSION);
+        }
 
-    // Store current DB version
-    update_option('dbre_db_version', DBRE_DB_VERSION);
-
+        // Update plugin version
+        update_option('dbre_version', DBRE_VERSION);
+    }
 }
 
 function dbre_deactivate() {
@@ -81,7 +93,7 @@ add_filter('wp_unique_post_slug', 'dbre_handle_slug_conflicts', 10, 6);
 // define('DEVICE_REDIRECT_MINIMUM_WP_VERSION', '5.0');
 // define('DEVICE_REDIRECT_MINIMUM_PHP_VERSION', '7.2');
 // URL pattern constants
-define('DBRE_VERSION', '1.1.0');
+define('DBRE_VERSION', '1.1.1');
 define('DBRE_IOS_URL_PATTERN', '/^https:\/\/apps\.apple\.com/');
 define('DBRE_ANDROID_URL_PATTERN', '/^https:\/\/play\.google\.com/');
 // Option names
@@ -614,8 +626,9 @@ function dbre_prevent_old_slug_redirect($redirect_url, $requested_url) {
 function dbre_run_migration() {
     global $wpdb;
     
-    // Check if migration is needed
-    if (get_option('dbre_migration_complete')) {
+    // Check if migration is needed by looking at both the migration flag
+    // and checking if the old data exists
+    if (get_option('dbre_migration_complete') && !get_option(DBRE_SETTINGS_KEY)) {
         return;
     }
 
@@ -623,38 +636,77 @@ function dbre_run_migration() {
     $old_settings = get_option(DBRE_SETTINGS_KEY, []);
     
     if (!empty($old_settings)) {
-        foreach ($old_settings as $key => $value) {
-            $post = get_post($key);
-            $type = $post ? 'page' : 'custom';
-            $reference_id = $key;
+        // Start transaction for safety
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $wpdb->query('START TRANSACTION');
+        
+        try {
+            foreach ($old_settings as $key => $value) {
+                $post = get_post($key);
+                $type = $post ? 'page' : 'custom';
+                $reference_id = $key;
 
-            // Insert into new table
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for atomic transactions, caching handled at entry points
-            $wpdb->insert(
-                dbre_get_table_name(),
-                [
-                    'type' => $type,
-                    'reference_id' => $reference_id,
-                    'ios_url' => $value['ios_url'] ?? null,
-                    'android_url' => $value['android_url'] ?? null,
-                    'backup_url' => $value['backup_url'] ?? null,
-                    'enabled' => !empty($value['enabled']) ? 1 : 0,
-                    'created_at' => current_time('mysql'),
-                    'updated_at' => current_time('mysql'),
-                    'order' => 0
-                ],
-                [
-                    '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%d'
-                ]
-            );
+                // Check if entry already exists
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+                $existing = $wpdb->get_var(
+                    $wpdb->prepare(
+                        "SELECT id FROM {$wpdb->prefix}dbre_redirects 
+                        WHERE type = %s AND reference_id = %s",
+                        $type,
+                        $reference_id
+                ));
+
+                if (!$existing) {
+                    // Only insert if entry doesn't exist
+                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+                    $wpdb->insert(
+                        dbre_get_table_name(),
+                        [
+                            'type' => $type,
+                            'reference_id' => $reference_id,
+                            'ios_url' => $value['ios_url'] ?? null,
+                            'android_url' => $value['android_url'] ?? null,
+                            'backup_url' => $value['backup_url'] ?? null,
+                            'enabled' => !empty($value['enabled']) ? 1 : 0,
+                            'created_at' => current_time('mysql'),
+                            'updated_at' => current_time('mysql'),
+                            'order' => 0
+                        ],
+                        [
+                            '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%d'
+                        ]
+                    );
+
+                    if ($wpdb->last_error) {
+                        throw new Exception($wpdb->last_error);
+                    }
+                }
+            }
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->query('COMMIT');
+            
+            // Mark migration as complete
+            update_option('dbre_migration_complete', true);
+            
+            // Optionally, backup old data with timestamp
+            // $backup_key = 'dbre_old_settings_backup_' . time();
+            // update_option($backup_key, $old_settings);
+            
+            // Delete old option after successful migration and backup
+            delete_option(DBRE_SETTINGS_KEY);
+            
+        } catch (Exception $e) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->query('ROLLBACK');
+            
+            // Log error if debug is enabled
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                if (function_exists('wp_debug_log')) {
+                    wp_debug_log('Device Redirect Migration Error: ' . $e->getMessage());
+                }
+            }
         }
     }
-
-    // Mark migration as complete
-    update_option('dbre_migration_complete', true);
-    
-    // Optionally, delete old option (you might want to keep it for backup)
-    // delete_option(DBRE_SETTINGS_KEY);
 }
 
 // Add new DB helper functions - Used for Clearing Transients during Deactivation

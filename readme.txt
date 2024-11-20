@@ -4,7 +4,7 @@ Donate link: https://www.buymeacoffee.com/indimakes
 Tags: mobile redirect, device specific redirects, app redirects, platform specific redirect, store links
 Requires at least: 5.0
 Tested up to: 6.7
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 Requires PHP: 7.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -46,7 +46,7 @@ The plugin handles user agent detection and routing automatically, making it eas
 Yes, you can configure page-specific redirects as well as custom URL redirects.
 
 = Can I temporarily disable all redirects? =
-Yes, use the bulk actions to disable directs in bulk. Alternatively, you can deactivate the plugin temporarily.
+Yes, use the bulk actions to disable redirects in bulk. Alternatively, you can deactivate the plugin temporarily.
 
 = Is there a limit to the number of redirects I can set? =
 No, there is no limit to the number of redirects you can set.
@@ -67,6 +67,9 @@ Redirects are of 302 type as they are not permanent.
 
 == Changelog ==
 
+= 1.1.1 =
+* Support for DB Migration during auto upgrades without deactivation
+
 = 1.1.0 =
 * Migrated to separate database table for redirects
 * Added transient Cache for fetching redirects on end-user pages
@@ -81,6 +84,10 @@ Redirects are of 302 type as they are not permanent.
 * Initial release
 
 == Upgrade Notice ==
+
+= 1.1.1 =
+* Support for DB Migration during auto upgrades without deactivation
+
 = 1.1.0 =
 * Update immediately to take advantage of the new and improved admin UI.
 * Redirects are now stored in a separate database table for better performance.
