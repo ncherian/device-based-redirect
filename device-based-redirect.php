@@ -3,7 +3,7 @@
 Plugin Name: Device Based Redirect
 Plugin URI:  https://github.com/ncherian/device-based-redirect
 Description: A plugin that redirects users to the App Store or Google Play Store based on their device type (iOS/Android), with options to select the page and set URLs in the admin dashboard.
-Version:     1.1.1
+Version:     1.1.2
 Author:      Indimakes
 Author URI:  https://indimakes.com
 License:     GPL2
@@ -88,12 +88,12 @@ add_action('parse_request', 'dbre_handle_custom_slugs', 1);
 add_action('init', 'dbre_modify_redirect_canonical', 0);
 add_action('wp_ajax_save_device_redirect_settings', 'dbre_save_settings');
 add_filter('wp_unique_post_slug', 'dbre_handle_slug_conflicts', 10, 6);
-
+add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'dbre_add_plugin_action_links');
 
 // define('DEVICE_REDIRECT_MINIMUM_WP_VERSION', '5.0');
 // define('DEVICE_REDIRECT_MINIMUM_PHP_VERSION', '7.2');
 // URL pattern constants
-define('DBRE_VERSION', '1.1.1');
+define('DBRE_VERSION', '1.1.2');
 define('DBRE_IOS_URL_PATTERN', '/^https:\/\/apps\.apple\.com/');
 define('DBRE_ANDROID_URL_PATTERN', '/^https:\/\/play\.google\.com/');
 // Option names
@@ -336,7 +336,7 @@ add_action('rest_api_init', function () {
         ),
     ));
 
-    // Add new REST API endpoint for paginated list
+    // REST API endpoint for paginated list
     register_rest_route('device-redirect/v1', '/redirects', array(
         'methods' => 'GET',
         'callback' => 'dbre_get_redirects_paginated',
@@ -367,7 +367,7 @@ add_action('rest_api_init', function () {
         ),
     ));
 
-    // Add this to the rest_api_init action
+    // REST API endpoint for deleting redirects
     register_rest_route('device-redirect/v1', '/delete', array(
         'methods' => 'POST',
         'callback' => 'dbre_handle_delete',
@@ -390,7 +390,7 @@ add_action('rest_api_init', function () {
         ),
     ));
 
-    // Add this inside the rest_api_init action callback, along with other endpoints
+    // REST API endpoint for getting a single entry
     register_rest_route('device-redirect/v1', '/entry', array(
         'methods' => 'GET',
         'callback' => 'dbre_get_entry',
@@ -622,7 +622,7 @@ function dbre_prevent_old_slug_redirect($redirect_url, $requested_url) {
     return $exists ? false : $redirect_url;
 }
 
-// Add migration function
+// Migration function
 function dbre_run_migration() {
     global $wpdb;
     
@@ -709,7 +709,7 @@ function dbre_run_migration() {
     }
 }
 
-// Add new DB helper functions - Used for Clearing Transients during Deactivation
+// DB helper functions - Used for Clearing Transients during Deactivation
 function dbre_get_redirects() {
     global $wpdb;
         
@@ -922,4 +922,27 @@ function dbre_get_entry($request) {
         'exists' => true,
         'entry' => $formatted
     ], 200);
+}
+
+
+// Function to handle the plugin action links
+function dbre_add_plugin_action_links($links) {
+    // Settings link
+    $settings_link = sprintf(
+        '<a href="%s">%s</a>',
+        admin_url('options-general.php?page=device-redirects'),
+        __('Settings', 'device-based-redirect')
+    );
+    array_unshift($links, $settings_link);
+    
+    // Support link
+    $support_link = sprintf(
+        '<a href="mailto:%s?subject=%s">%s</a>',
+        'support@indimakes.com',
+        urlencode('Device Based Redirect Plugin Support'),
+        __('Support', 'device-based-redirect')
+    );
+    array_push($links, $support_link);
+    
+    return $links;
 }

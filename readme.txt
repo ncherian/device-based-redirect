@@ -4,7 +4,7 @@ Donate link: https://www.buymeacoffee.com/indimakes
 Tags: mobile redirect, device specific redirects, app redirects, platform specific redirect, store links
 Requires at least: 5.0
 Tested up to: 6.7
-Stable tag: 1.1.1
+Stable tag: 1.1.2
 Requires PHP: 7.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
