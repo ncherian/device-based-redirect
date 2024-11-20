@@ -40,6 +40,18 @@ const DeviceRedirectSettings = () => {
     const [redirects, setRedirects] = useState([]);
     const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pageParam = parseInt(params.get('page_num')) || 1;
+    const typeParam = params.get('type') || 'all';
+    
+    // Set both states in a single batch update
+    Promise.resolve().then(() => {
+        setCurrentPage(pageParam);
+        setTypeFilter(typeParam);
+    });
+  }, []);
+
   // Load initial data
   useEffect(() => {
     // Clear selections when changing pages
@@ -146,34 +158,10 @@ const DeviceRedirectSettings = () => {
     }
     
     try {
-        // 2. Check if page already exists by making an API call
-        // Add all necessary parameters to ensure we get the correct result
-        const checkResponse = await fetch(
-            `${deviceRedirectData.restUrl}device-redirect/v1/redirects?` + 
-            new URLSearchParams({
-                page: 1,
-                per_page: 1,
-                type: 'page',  // Explicitly set type to 'page'
-                reference_id: selectedPage,
-                search: ''  // Explicitly set empty search
-            }),
-            {
-                headers: {
-                    'X-WP-Nonce': deviceRedirectData.restNonce
-                }
-            }
-        );
-
-        if (!checkResponse.ok) {
-            throw new Error('Failed to check existing redirect');
-        }
-
-        const checkData = await checkResponse.json();
+        // 2. Check if page already exists using the new endpoint
+        const checkResult = await checkExistingEntry('page', selectedPage);
         
-        // Log the response for debugging
-        console.log('Check existing redirect response:', checkData);
-        
-        if (checkData.total > 0) {  // Changed from checking items length to total
+        if (checkResult.exists) {
             setError({ type: 'page', message: 'This page already has a redirect!' });
             return;
         }
@@ -270,13 +258,15 @@ const DeviceRedirectSettings = () => {
         .replace(/-+/g, '-')
         .replace(/^-|-$/g, '');
     
-    // 3. Check if slug already exists in redirects
-    if (slugRedirects.some(redirect => redirect.slug === cleanSlug)) {
-        setError({ type: 'slug', message: 'This slug has already been added!' });
-        return;
-    }
-
     try {
+        // 3. Check if slug already exists using the new endpoint
+        const checkResult = await checkExistingEntry('custom', cleanSlug);
+        
+        if (checkResult.exists) {
+            setError({ type: 'slug', message: 'This slug has already been added!' });
+            return;
+        }
+
         // 4. Validate slug against WordPress pages/posts
         const validateResponse = await fetch(
             `${deviceRedirectData.restUrl}device-redirect/v1/validate-slug?slug=${encodeURIComponent(cleanSlug)}`,
@@ -750,6 +740,54 @@ const resetAndReload = async () => {
     }
 };
 
+const updateURL = (page, type) => {
+  const params = new URLSearchParams(window.location.search);
+  
+  if (page !== 1) {
+      params.set('page_num', page);
+  } else {
+      params.delete('page_num');
+  }
+  
+  if (type !== 'all') {
+      params.set('type', type);
+  } else {
+      params.delete('type');
+  }
+
+  // Update URL without reloading the page
+  const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
+  window.history.pushState({}, '', newUrl);
+};
+
+// Function to check if an entry already exists
+const checkExistingEntry = async (type, referenceId) => {
+    try {
+        const response = await fetch(
+            `${deviceRedirectData.restUrl}device-redirect/v1/entry?` + 
+            new URLSearchParams({
+                type: type,
+                reference_id: referenceId,
+            }),
+            {
+                headers: {
+                    'X-WP-Nonce': deviceRedirectData.restNonce
+                }
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error('Failed to check existing entry');
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error('Error checking existing entry:', error);
+        throw error;
+    }
+};
+
   return (
     <div className="wrap">
       <h1>Device-Based Redirects</h1>
@@ -1047,7 +1085,10 @@ const resetAndReload = async () => {
                 <select
                   value={typeFilter}
                   onChange={(e) => {
-                    setTypeFilter(e.target.value);
+                    const newType = e.target.value;
+                    setTypeFilter(newType);
+                    setCurrentPage(1); // Rese
+                    updateURL(1, newType);
                     setSelectedItems([]); // Clear selections when filter changes
                     setSelectAll(false);
                   }}
@@ -1408,14 +1449,21 @@ const resetAndReload = async () => {
                 <span className="pagination-links">
                   <button
                     className="first-page button"
-                    onClick={() => setCurrentPage(1)}
+                    onClick={() => {
+                      setCurrentPage(1);
+                      updateURL(1, typeFilter);
+                    }}
                     disabled={currentPage === 1}
                   >
                     «
                   </button>
                   <button
                     className="prev-page button"
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    onClick={() => {
+                      const newPage = Math.max(1, currentPage - 1);
+                      setCurrentPage(newPage);
+                      updateURL(newPage, typeFilter);
+                  }}
                     disabled={currentPage === 1}
                   >
                     ‹
@@ -1427,14 +1475,21 @@ const resetAndReload = async () => {
                   </span>
                   <button
                     className="next-page button"
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    onClick={() => {
+                      const newPage = Math.min(totalPages, currentPage + 1);
+                      setCurrentPage(newPage);
+                      updateURL(newPage, typeFilter);
+                  }}
                     disabled={currentPage === totalPages}
                   >
                     ›
                   </button>
                   <button
                     className="last-page button"
-                    onClick={() => setCurrentPage(totalPages)}
+                    onClick={() => {
+                      setCurrentPage(totalPages);
+                      updateURL(totalPages, typeFilter);
+                  }}
                     disabled={currentPage === totalPages}
                   >
                     »

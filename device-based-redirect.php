@@ -425,6 +425,26 @@ add_action('rest_api_init', function () {
             ),
         ),
     ));
+
+    // Add this inside the rest_api_init action callback, along with other endpoints
+    register_rest_route('device-redirect/v1', '/entry', array(
+        'methods' => 'GET',
+        'callback' => 'dbre_get_entry',
+        'permission_callback' => function() {
+            return current_user_can('manage_options');
+        },
+        'args' => array(
+            'type' => array(
+                'required' => true,
+                'type' => 'string',
+                'enum' => ['page', 'custom'],
+            ),
+            'reference_id' => array(
+                'required' => true,
+                'type' => 'string',
+            ),
+        ),
+    ));
 });
 
 function dbre_validate_slug($request) {
@@ -708,7 +728,8 @@ function dbre_get_redirects_paginated($request) {
     $page = $request->get_param('page');
     $per_page = $request->get_param('per_page');
     $type = $request->get_param('type');
-    
+    $reference_id = $request->get_param('reference_id');
+
     $offset = ($page - 1) * $per_page;
     
     if ($type && $type !== 'all') {
@@ -726,6 +747,23 @@ function dbre_get_redirects_paginated($request) {
             $wpdb->prepare(
                 "SELECT * FROM {$wpdb->prefix}dbre_redirects WHERE type = %s ORDER BY created_at DESC LIMIT %d OFFSET %d",
                 $type, $per_page, $offset
+            ),
+            ARRAY_A
+        );
+    } elseif ($reference_id !== '') {
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $total_items = (int)$wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->prefix}dbre_redirects WHERE reference_id = %s",
+                $reference_id
+            )
+        );
+        
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $results = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}dbre_redirects WHERE reference_id = %s ORDER BY created_at DESC LIMIT %d OFFSET %d",
+                $reference_id, $per_page, $offset
             ),
             ARRAY_A
         );
@@ -829,4 +867,55 @@ function dbre_handle_delete($request) {
             array('status' => 500)
         );
     }
+}
+
+// Function to get Redirect Entry by Type and Reference ID
+function dbre_get_entry($request) {
+    global $wpdb;
+    
+    $type = sanitize_text_field($request->get_param('type'));
+    $reference_id = sanitize_text_field($request->get_param('reference_id'));
+    
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+    $entry = $wpdb->get_row(
+        $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}dbre_redirects WHERE type = %s AND reference_id = %s",
+            $type,
+            $reference_id
+        ),
+        ARRAY_A
+    );
+    
+    if (!$entry) {
+        return new WP_REST_Response([
+            'exists' => false,
+            'message' => 'Entry not found'
+        ], 200);
+    }
+    
+    // Format the entry similar to the list endpoint
+    $formatted = [
+        'id' => (int)$entry['id'],
+        'type' => $entry['type'],
+        'reference_id' => $entry['reference_id'],
+        'iosUrl' => $entry['ios_url'],
+        'androidUrl' => $entry['android_url'],
+        'backupUrl' => $entry['backup_url'],
+        'enabled' => (bool)$entry['enabled'],
+        'updatedAt' => $entry['updated_at']
+    ];
+    
+    if ($entry['type'] === 'page') {
+        $page = get_post($entry['reference_id']);
+        $formatted['displayTitle'] = $page ? $page->post_title : $entry['reference_id'];
+        $formatted['displayUrl'] = $page ? get_permalink($page->ID) : home_url($entry['reference_id']);
+    } else {
+        $formatted['displayTitle'] = $entry['reference_id'];
+        $formatted['displayUrl'] = home_url($entry['reference_id']);
+    }
+    
+    return new WP_REST_Response([
+        'exists' => true,
+        'entry' => $formatted
+    ], 200);
 }
