@@ -1,7 +1,7 @@
-=== Device Based Redirect ===
+=== Device-Based Redirect ===
 Contributors: ncherian
 Donate link: https://www.buymeacoffee.com/indimakes
-Tags: mobile redirect, device specific redirects, app redirects, platform specific redirect, store links
+Tags: mobile redirect, redirection, redirect, android, ios
 Requires at least: 5.0
 Tested up to: 6.7
 Stable tag: 1.1.2
@@ -13,24 +13,27 @@ Redirect users to your app pages in app store or play store based on their devic
 
 == Description ==
 
-Device Based Redirect allows you to easily set up redirects to your mobile apps based on the user's device. Perfect for promoting your mobile apps to website visitors and implementing platform-specific deep linking through a single URL.
+Device Based Redirect allows you to easily set up redirects to your mobile apps or mobile-friendly URLs based on the user's device type. Perfect for promoting your mobile apps to website visitors and implementing platform-specific deep linking through a single URL.
 
 Features:
 
 * Page-specific redirects - Configure different redirects for different pages on your site
 * Custom URL redirects - Create custom URLs that redirect users based on their device
-* iOS and Android app store links - Set different destinations for iOS and Android users
+* Set different destinations for iOS and Android users. Can be used to send users to iOS and Android app store pages.
 * Deep linking support - Direct users to specific sections of your app through platform-specific deep links
 * Fallback URLs for other devices - Specify where non-mobile users should be redirected
 * Easy-to-use admin interface - Simple configuration through WordPress admin panel
-* Global enable/disable option - Quickly turn all redirects on/off
+* Bulk enable/disable option - Quickly turn all redirects on/off
+* Transient Cache for end-user redirects - Reduces database load for high traffic sites
 
 Use Cases:
 
 * App Store Promotion: Direct mobile users to your app's store listing while showing desktop users your website
 * Deep Linking: Create a single URL that opens different app screens on iOS and Android
+* Redirect users to mobile-friendly URLs based on their device type
 * Marketing Campaigns: Share one link that works across all platforms
 * Cross-Platform Navigation: Seamlessly guide users to the right platform-specific destination
+* 302 redirects - Redirects are of 302 type as they are not permanent.
 
 The plugin handles user agent detection and routing automatically, making it easy to implement complex platform-specific navigation through simple WordPress configuration.
 
@@ -67,6 +70,9 @@ Redirects are of 302 type as they are not permanent.
 
 == Changelog ==
 
+= 1.1.2 =
+* Added Plugin Links for Support and Settings Page
+
 = 1.1.1 =
 * Support for DB Migration during auto upgrades without deactivation
 
@@ -84,6 +90,9 @@ Redirects are of 302 type as they are not permanent.
 * Initial release
 
 == Upgrade Notice ==
+
+= 1.1.2 =
+* Minor Upgrade - Added Plugin Links for Support and Settings Page
 
 = 1.1.1 =
 * Support for DB Migration during auto upgrades without deactivation
