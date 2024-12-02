@@ -3,7 +3,7 @@
 Plugin Name: Device-Based Redirect
 Plugin URI:  https://github.com/ncherian/device-based-redirect
 Description: Device-Based Redirect enables dynamic redirection of users to mobile-friendly URLs or the App Store/Google Play Store, tailored to their device type (iOS/Android).You can select specific pages or set up custom URLs effortlessly.
-Version:     1.1.2
+Version:     1.1.3
 Author:      Indimakes
 Author URI:  https://indimakes.com
 License:     GPL2
@@ -93,7 +93,7 @@ add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'dbre_add_plugin_
 // define('DEVICE_REDIRECT_MINIMUM_WP_VERSION', '5.0');
 // define('DEVICE_REDIRECT_MINIMUM_PHP_VERSION', '7.2');
 // URL pattern constants
-define('DBRE_VERSION', '1.1.2');
+define('DBRE_VERSION', '1.1.3');
 define('DBRE_IOS_URL_PATTERN', '/^https:\/\/apps\.apple\.com/');
 define('DBRE_ANDROID_URL_PATTERN', '/^https:\/\/play\.google\.com/');
 // Option names

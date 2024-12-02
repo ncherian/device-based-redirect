@@ -4,7 +4,7 @@ Donate link: https://www.buymeacoffee.com/indimakes
 Tags: mobile redirect, redirection, redirect, android, ios
 Requires at least: 5.0
 Tested up to: 6.7
-Stable tag: 1.1.2
+Stable tag: 1.1.3
 Requires PHP: 7.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -70,6 +70,9 @@ Redirects are of 302 type as they are not permanent.
 
 == Changelog ==
 
+= 1.1.3 =
+* Moved Admin to top of menu
+
 = 1.1.2 =
 * Added Plugin Links for Support and Settings Page
 
@@ -90,6 +93,9 @@ Redirects are of 302 type as they are not permanent.
 * Initial release
 
 == Upgrade Notice ==
+
+= 1.1.3 =
+* Moved Admin to top of menu
 
 = 1.1.2 =
 * Minor Upgrade - Added Plugin Links for Support and Settings Page
