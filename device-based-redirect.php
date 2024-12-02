@@ -101,12 +101,14 @@ define('DBRE_SETTINGS_KEY', 'dbre_entries');
 define('DBRE_DB_VERSION', '1.0');
 
 function dbre_menu() {
-    add_options_page(
-        'Device Based Redirection Settings',
-        'Device Redirects',
-        'manage_options',
-        'device-redirects',
-        'dbre_settings_page'
+    add_menu_page(
+        'Device Based Redirection',  // Page title
+        'Device Redirects',          // Menu title
+        'manage_options',            // Capability
+        'device-redirects',          // Menu slug
+        'dbre_settings_page',        // Function to display the page
+        'dashicons-smartphone',      // Icon (using smartphone dashicon)
+        30                          // Position in menu (lower number = higher position)
     );
 }
 
@@ -115,7 +117,7 @@ function dbre_settings_page() {
 }
 
 function dbre_scripts($hook) {
-    if ($hook !== 'settings_page_device-redirects') {
+    if ($hook !== 'toplevel_page_device-redirects') {
         return;
     }
 
@@ -927,19 +929,18 @@ function dbre_get_entry($request) {
 
 // Function to handle the plugin action links
 function dbre_add_plugin_action_links($links) {
-    // Settings link
+    // Settings link - Update the URL to point to the new location
     $settings_link = sprintf(
         '<a href="%s">%s</a>',
-        admin_url('options-general.php?page=device-redirects'),
+        admin_url('admin.php?page=device-redirects'),  // Updated URL
         __('Settings', 'device-based-redirect')
     );
     array_unshift($links, $settings_link);
     
     // Support link
     $support_link = sprintf(
-        '<a href="mailto:%s?subject=%s">%s</a>',
-        'support@indimakes.com',
-        urlencode('Device Based Redirect Plugin Support'),
+        '<a href="%s">%s</a>',
+        'https://wordpress.org/support/plugin/device-based-redirect/',
         __('Support', 'device-based-redirect')
     );
     array_push($links, $support_link);
