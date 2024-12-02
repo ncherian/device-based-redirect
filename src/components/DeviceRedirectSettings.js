@@ -1089,7 +1089,7 @@ const handlePaginationChange = (newPage) => {
               <div className="coffee-button-container">
                 <a href="https://www.buymeacoffee.com/indimakes" target="_blank" rel="noopener noreferrer">
                   <img 
-                    src={deviceRedirectData.pluginUrl + '/assets/bmc-button.png'}
+                    src={deviceRedirectData.pluginUrl + '/assets/bmc.png'}
                     alt="Buy Me A Coffee"
                     className="coffee-button-img"
                   />
