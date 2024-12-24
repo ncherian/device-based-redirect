@@ -284,33 +284,46 @@ function dbre_redirect_logic() {
         }
 
         if ($redirect && (!empty($redirect['ios_url']) || !empty($redirect['android_url']))) {
-            // Enqueue the redirect script
-            wp_enqueue_script(
-                'device-redirect-front',
-                plugins_url('js/redirect.js', __FILE__),
-                array(),
-                DBRE_VERSION,
-                true
-            );
+            // Get device type
+            $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? 
+                sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
+            
+            $is_ios = preg_match('/(ipad|iphone|ipod)/i', $user_agent);
+            $is_android = preg_match('/android/i', $user_agent);
+            
+            $has_relevant_store_url = ($is_ios && !empty($redirect['ios_url'])) || 
+                                    ($is_android && !empty($redirect['android_url']));
 
-            // Pass configuration to script
-            wp_localize_script(
-                'device-redirect-front',
-                'deviceRedirectConfig',
-                array(
-                    'ios' => esc_js($redirect['ios_url']),
-                    'android' => esc_js($redirect['android_url']),
-                    'backup' => esc_js($redirect['backup_url']),
-                    'current' => esc_js($current_url)
-                )
-            );
+            if (($is_ios || $is_android) && $has_relevant_store_url) {
+                // JavaScript config
+                wp_enqueue_script(
+                    'device-redirect-front',
+                    plugins_url('js/redirect.js', __FILE__),
+                    array(),
+                    DBRE_VERSION,
+                    true
+                );
 
-        }else{
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                // Using wp_debug_log is preferred when available
-                if (function_exists('wp_debug_log')) {
-                    wp_debug_log('No valid redirect found or URLs empty');
-                }
+                $config = array(
+                    'ios' => esc_url($redirect['ios_url']),
+                    'android' => esc_url($redirect['android_url']),
+                    'backup' => esc_url($redirect['backup_url']),
+                    'current' => esc_url($current_url),
+                    'isStoreUrl' => (
+                        ($is_ios && !empty($redirect['ios_url']) && preg_match(DBRE_IOS_URL_PATTERN, $redirect['ios_url'])) ||
+                        ($is_android && !empty($redirect['android_url']) && preg_match(DBRE_ANDROID_URL_PATTERN, $redirect['android_url']))
+                    )
+                );
+
+                wp_localize_script('device-redirect-front', 'deviceRedirectConfig', $config);
+
+                // Pass config to template
+                add_filter('template_include', function($template) use ($config) {
+                    // Make config available to template
+                    global $deviceRedirectConfig;
+                    $deviceRedirectConfig = $config;
+                    return plugin_dir_path(__FILE__) . 'templates/redirect-template.php';
+                }, 999);
             }
         }
     } catch (Exception $e) {
@@ -547,6 +560,7 @@ function dbre_handle_custom_slugs($wp) {
                                 ($is_android && !empty($redirect['android_url']));
 
         if (($is_ios || $is_android) && $has_relevant_store_url) {
+            // JavaScript config
             wp_register_script(
                 'device-redirect-front',
                 plugins_url('js/redirect.js', __FILE__),
@@ -555,20 +569,25 @@ function dbre_handle_custom_slugs($wp) {
                 false
             );
 
-            wp_localize_script(
-                'device-redirect-front',
-                'deviceRedirectConfig',
-                array(
-                    'ios' => esc_url($redirect['ios_url']),
-                    'android' => esc_url($redirect['android_url']),
-                    'backup' => esc_url($redirect['backup_url']),
-                    'current' => esc_url(home_url(add_query_arg(NULL, NULL)))
+            $config = array(
+                'ios' => esc_url($redirect['ios_url']),
+                'android' => esc_url($redirect['android_url']),
+                'backup' => esc_url($redirect['backup_url']),
+                'current' => esc_url(home_url(add_query_arg(NULL, NULL))),
+                'isStoreUrl' => (
+                    ($is_ios && !empty($redirect['ios_url']) && preg_match(DBRE_IOS_URL_PATTERN, $redirect['ios_url'])) ||
+                    ($is_android && !empty($redirect['android_url']) && preg_match(DBRE_ANDROID_URL_PATTERN, $redirect['android_url']))
                 )
             );
 
+            wp_localize_script('device-redirect-front', 'deviceRedirectConfig', $config);
             wp_enqueue_script('device-redirect-front');
 
-            add_filter('template_include', function($template) {
+            // Pass config to template
+            add_filter('template_include', function($template) use ($config) {
+                // Make config available to template
+                global $deviceRedirectConfig;
+                $deviceRedirectConfig = $config;
                 return plugin_dir_path(__FILE__) . 'templates/redirect-template.php';
             }, 999);
             
