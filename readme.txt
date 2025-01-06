@@ -4,7 +4,7 @@ Donate link: https://www.buymeacoffee.com/indimakes
 Tags: mobile redirect, redirection, redirect, android, ios
 Requires at least: 5.0
 Tested up to: 6.7
-Stable tag: 1.1.4
+Stable tag: 1.1.5
 Requires PHP: 7.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -70,6 +70,9 @@ Redirects are of 302 type as they are not permanent.
 
 == Changelog ==
 
+= 1.1.5 =
+* Added a Dismissible Section for Requesting Reviews and gathering Feature Requests
+
 = 1.1.4 =
 * Updated Redirect Template for Custom URL Intermediate Page
 
@@ -96,6 +99,9 @@ Redirects are of 302 type as they are not permanent.
 * Initial release
 
 == Upgrade Notice ==
+
+= 1.1.5 =
+* Minor Upgrade - Dismissible Section for Requesting Reviews and gathering Feature Requests
 
 = 1.1.4 =
 * Updated Redirect Template for Custom URL Intermediate Page
