@@ -90,6 +90,9 @@ add_action('wp_ajax_save_device_redirect_settings', 'dbre_save_settings');
 add_filter('wp_unique_post_slug', 'dbre_handle_slug_conflicts', 10, 6);
 add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'dbre_add_plugin_action_links');
 
+// Register the AJAX action for dismissing the review request
+add_action('wp_ajax_dbre_dismiss_review', 'dbre_handle_dismiss_review');
+
 // define('DEVICE_REDIRECT_MINIMUM_WP_VERSION', '5.0');
 // define('DEVICE_REDIRECT_MINIMUM_PHP_VERSION', '7.2');
 // URL pattern constants
@@ -138,6 +141,11 @@ function dbre_scripts($hook) {
         ];
     }, $all_pages);
 
+    // Check if there are any redirects and if review hasn't been dismissed
+    global $wpdb;
+
+    $show_review = get_option('dbre_review_dismissed', 0) < 1;
+
     wp_localize_script('device-redirect-react', 'deviceRedirectData', [
         'nonce' => wp_create_nonce('device_redirect_nonce'),
         'ajaxUrl' => admin_url('admin-ajax.php'),
@@ -146,6 +154,7 @@ function dbre_scripts($hook) {
         'homeUrl' => home_url(),
         'pages' => $formatted_pages,
         'pluginUrl' => plugins_url('', __FILE__),
+        'showReviewRequest' => $show_review
     ]);
 }
 
@@ -965,4 +974,36 @@ function dbre_add_plugin_action_links($links) {
     array_push($links, $support_link);
     
     return $links;
+}
+
+function dbre_handle_dismiss_review() {
+    check_ajax_referer('device_redirect_nonce', 'nonce');
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(array(
+            'message' => 'Unauthorized'
+        ), 403);
+        return;
+    }
+    
+    // First try to delete any existing option
+    delete_option('dbre_review_dismissed');
+    
+    // Then add the new option
+    $result = add_option('dbre_review_dismissed', 1);
+    
+    if (!$result) {
+        // If add_option failed, try update_option
+        $result = update_option('dbre_review_dismissed', 1);
+    }
+    
+    if ($result) {
+        wp_send_json_success(array(
+            'message' => 'Review request dismissed successfully'
+        ));
+    } else {
+        wp_send_json_error(array(
+            'message' => 'Failed to update dismissal status'
+        ), 500);
+    }
 }

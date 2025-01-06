@@ -1,226 +1,238 @@
-  import React, { useState, useEffect, useRef } from 'react';
-  import './styles.css';
+import React, { useState, useEffect, useRef } from 'react';
+import './styles.css';
 
-  const ToggleSwitch = ({ enabled, onChange, small = false }) => (
-    <label className={`toggle-switch ${small ? 'toggle-switch-small' : ''}`}>
-      <input
-        type="checkbox"
-        checked={enabled}
-        onChange={(e) => onChange(e.target.checked)}
-      />
-      <span className="toggle-slider"></span>
-    </label>
+const ToggleSwitch = ({ enabled, onChange, small = false }) => (
+  <label className={`toggle-switch ${small ? 'toggle-switch-small' : ''}`}>
+    <input
+      type="checkbox"
+      checked={enabled}
+      onChange={(e) => onChange(e.target.checked)}
+    />
+    <span className="toggle-slider"></span>
+  </label>
+);
+
+const DeviceRedirectSettings = () => {
+  // Get initial type and page from URL
+  const params = new URLSearchParams(window.location.search);
+  const initialType = params.get('type') || 'all';
+  const initialPage = parseInt(params.get('page_num')) || 1;
+  // State variables
+  const [pageRedirects, setPageRedirects] = useState([]);
+  const [slugRedirects, setSlugRedirects] = useState([]);
+  const [selectedPage, setSelectedPage] = useState('');
+  const [newSlug, setNewSlug] = useState('');
+  const [error, setError] = useState({ type: '', message: '' });
+  const [notification, setNotification] = useState(null);
+  const [urlValidationErrors, setUrlValidationErrors] = useState({});
+  const [editingRedirects, setEditingRedirects] = useState({});
+  const [editingValues, setEditingValues] = useState({});
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
+  const [bulkAction, setBulkAction] = useState('');
+  const [typeFilter, setTypeFilter] = useState(initialType);
+
+  const [addRedirectType, setAddRedirectType] = useState('page');
+  const [newRedirectUrls, setNewRedirectUrls] = useState({
+    iosUrl: '',
+    androidUrl: '',
+    backupUrl: ''
+  });
+  const [formNotification, setFormNotification] = useState(null);
+  const [currentPage, setCurrentPage] = useState(initialPage);
+  const [perPage, setPerPage] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [redirects, setRedirects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showReviewRequest, setShowReviewRequest] = useState(
+    // Check if deviceRedirectData exists and showReviewRequest is a boolean
+    typeof deviceRedirectData?.showReviewRequest === 'boolean' 
+      ? deviceRedirectData.showReviewRequest 
+      : false
   );
 
-  const DeviceRedirectSettings = () => {
-    // Get initial type and page from URL
-    const params = new URLSearchParams(window.location.search);
-    const initialType = params.get('type') || 'all';
-    const initialPage = parseInt(params.get('page_num')) || 1;
-    // State variables
-    const [pageRedirects, setPageRedirects] = useState([]);
-    const [slugRedirects, setSlugRedirects] = useState([]);
-    const [selectedPage, setSelectedPage] = useState('');
-    const [newSlug, setNewSlug] = useState('');
-    const [error, setError] = useState({ type: '', message: '' });
-    const [notification, setNotification] = useState(null);
-    const [urlValidationErrors, setUrlValidationErrors] = useState({});
-    const [editingRedirects, setEditingRedirects] = useState({});
-    const [editingValues, setEditingValues] = useState({});
-    const [selectedItems, setSelectedItems] = useState([]);
-    const [selectAll, setSelectAll] = useState(false);
-    const [bulkAction, setBulkAction] = useState('');
-    const [typeFilter, setTypeFilter] = useState(initialType);
+  useEffect(() => {
+    // Clear selections when changing pages
+    setSelectedItems([]);
+    setSelectAll(false);
+    loadRedirects();
+  }, [currentPage, perPage, typeFilter]);
 
-    const [addRedirectType, setAddRedirectType] = useState('page');
-    const [newRedirectUrls, setNewRedirectUrls] = useState({
-      iosUrl: '',
-      androidUrl: '',
-      backupUrl: ''
-    });
-    const [formNotification, setFormNotification] = useState(null);
-    const [currentPage, setCurrentPage] = useState(initialPage);
-    const [perPage, setPerPage] = useState(10);
-    const [totalPages, setTotalPages] = useState(1);
-    const [totalItems, setTotalItems] = useState(0);
-    const [redirects, setRedirects] = useState([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-      // Clear selections when changing pages
-      setSelectedItems([]);
-      setSelectAll(false);
-      loadRedirects();
-    }, [currentPage, perPage, typeFilter]);
-
-    const loadRedirects = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch(
-          `${deviceRedirectData.restUrl}device-redirect/v1/redirects?` + 
-          new URLSearchParams({
-            page: currentPage,
-            per_page: perPage,
-            type: typeFilter,
-          }),
-          {
-            headers: {
-              'X-WP-Nonce': deviceRedirectData.restNonce
-            }
+  const loadRedirects = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(
+        `${deviceRedirectData.restUrl}device-redirect/v1/redirects?` + 
+        new URLSearchParams({
+          page: currentPage,
+          per_page: perPage,
+          type: typeFilter,
+        }),
+        {
+          headers: {
+            'X-WP-Nonce': deviceRedirectData.restNonce
           }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to load redirects');
+      }
+      const data = await response.json();
+      setRedirects(data.items);
+      setTotalPages(data.pages);
+      setTotalItems(data.total);
+
+      // Show review request if there are redirects and it hasn't been dismissed
+      if (data.items.length > 0 && deviceRedirectData.showReviewRequest) {
+        setShowReviewRequest(true);
+      }
+
+
+      // Update selectAll based on whether all visible items are selected
+      if (data.items.length > 0) {
+        const allCurrentItemsSelected = data.items.every(item => 
+          selectedItems.includes(item.id)
         );
+        setSelectAll(allCurrentItemsSelected);
+      }
+    } catch (error) {
+      setNotification({
+        message: `Error loading redirects: ${error.message}`,
+        type: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        if (!response.ok) {
-          throw new Error('Failed to load redirects');
-        }
-        const data = await response.json();
-        setRedirects(data.items);
-        setTotalPages(data.pages);
-        setTotalItems(data.total);
 
-        // Update selectAll based on whether all visible items are selected
-        if (data.items.length > 0) {
-          const allCurrentItemsSelected = data.items.every(item => 
-            selectedItems.includes(item.id)
-          );
-          setSelectAll(allCurrentItemsSelected);
+  const removeRedirect = async (redirect) => {
+    if (window.confirm('Are you sure you want to remove this redirect?')) {
+        try {
+            const response = await fetch(
+                `${deviceRedirectData.restUrl}device-redirect/v1/delete`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-WP-Nonce': deviceRedirectData.restNonce
+                    },
+                    body: JSON.stringify({
+                        items: [{
+                            id: redirect.id,
+                            reference_id: redirect.reference_id,
+                            type: redirect.type
+                        }]
+                    })
+                }
+            );
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                await loadRedirects();
+                setNotification({
+                    message: 'Redirect removed successfully!',
+                    type: 'success'
+                });
+                
+                setTimeout(() => {
+                    setNotification(null);
+                }, 5000);
+            } else {
+                throw new Error(data.message || 'Remove failed');
+            }
+        } catch (error) {
+            setNotification({
+                message: `Error removing redirect: ${error.message}`,
+                type: 'error'
+            });
         }
-      } catch (error) {
-        setNotification({
-          message: `Error loading redirects: ${error.message}`,
-          type: 'error'
+    }
+};
+
+
+  const handleAddPageRedirect = async () => {
+    // 1. First check if page is selected
+    if (!selectedPage) {
+        setError({ type: 'page', message: 'Please select a page' });
+        return;
+    }
+    
+    try {
+        // 2. Check if page already exists using the new endpoint
+        const checkResult = await checkExistingEntry('page', selectedPage);
+        
+        if (checkResult.exists) {
+            setError({ type: 'page', message: 'This page already has a redirect!' });
+            return;
+        }
+
+        // 3. Then validate URLs
+        const urlErrors = validateNewUrls();
+        if (Object.keys(urlErrors).length > 0) {
+            setUrlValidationErrors(urlErrors);
+            return;
+        }
+
+        // 4. Save the new redirect
+        const settings = {
+            [selectedPage]: {
+                type: 'page',
+                ios_url: newRedirectUrls.iosUrl,
+                android_url: newRedirectUrls.androidUrl,
+                backup_url: newRedirectUrls.backupUrl,
+                enabled: true
+            }
+        };
+
+        const formData = new FormData();
+        formData.append('action', 'save_device_redirect_settings');
+        formData.append('nonce', deviceRedirectData.nonce);
+        formData.append('settings', JSON.stringify(settings));
+        
+        const response = await fetch(deviceRedirectData.ajaxUrl, {
+            method: 'POST',
+            body: formData
         });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-
-    const removeRedirect = async (redirect) => {
-      if (window.confirm('Are you sure you want to remove this redirect?')) {
-          try {
-              const response = await fetch(
-                  `${deviceRedirectData.restUrl}device-redirect/v1/delete`,
-                  {
-                      method: 'POST',
-                      headers: {
-                          'Content-Type': 'application/json',
-                          'X-WP-Nonce': deviceRedirectData.restNonce
-                      },
-                      body: JSON.stringify({
-                          items: [{
-                              id: redirect.id,
-                              reference_id: redirect.reference_id,
-                              type: redirect.type
-                          }]
-                      })
-                  }
-              );
-              
-              const data = await response.json();
-              
-              if (response.ok) {
-                  await loadRedirects();
-                  setNotification({
-                      message: 'Redirect removed successfully!',
-                      type: 'success'
-                  });
-                  
-                  setTimeout(() => {
-                      setNotification(null);
-                  }, 5000);
-              } else {
-                  throw new Error(data.message || 'Remove failed');
-              }
-          } catch (error) {
-              setNotification({
-                  message: `Error removing redirect: ${error.message}`,
-                  type: 'error'
-              });
-          }
-      }
-  };
-
-
-    const handleAddPageRedirect = async () => {
-      // 1. First check if page is selected
-      if (!selectedPage) {
-          setError({ type: 'page', message: 'Please select a page' });
-          return;
-      }
-      
-      try {
-          // 2. Check if page already exists using the new endpoint
-          const checkResult = await checkExistingEntry('page', selectedPage);
-          
-          if (checkResult.exists) {
-              setError({ type: 'page', message: 'This page already has a redirect!' });
-              return;
-          }
-
-          // 3. Then validate URLs
-          const urlErrors = validateNewUrls();
-          if (Object.keys(urlErrors).length > 0) {
-              setUrlValidationErrors(urlErrors);
-              return;
-          }
-
-          // 4. Save the new redirect
-          const settings = {
-              [selectedPage]: {
-                  type: 'page',
-                  ios_url: newRedirectUrls.iosUrl,
-                  android_url: newRedirectUrls.androidUrl,
-                  backup_url: newRedirectUrls.backupUrl,
-                  enabled: true
-              }
-          };
-
-          const formData = new FormData();
-          formData.append('action', 'save_device_redirect_settings');
-          formData.append('nonce', deviceRedirectData.nonce);
-          formData.append('settings', JSON.stringify(settings));
-          
-          const response = await fetch(deviceRedirectData.ajaxUrl, {
-              method: 'POST',
-              body: formData
-          });
-          
-          const data = await response.json();
-          
-          if (data.success) {
-              // Reset form
-              setSelectedPage('');
-              setError({ type: '', message: '' });
-              setNewRedirectUrls({ iosUrl: '', androidUrl: '', backupUrl: '' });
-              
-              // Use the reset function
-              await resetAndReload();
-              
-              setFormNotification({
-                  message: 'Page redirect added successfully!',
-                  type: 'success'
-              });
-              
-              setNotification({
-                  message: 'Page redirect added successfully!',
-                  type: 'success'
-              });
-              
-              setTimeout(() => {
-                  setNotification(null);
-                  setFormNotification(null);
-              }, 5000);
-          } else {
-              throw new Error(data.data || 'Save failed');
-          }
-      } catch (error) {
-          setNotification({
-              message: `Error adding page redirect: ${error.message}`,
-              type: 'error'
-          });
-      }
-  };
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Reset form
+            setSelectedPage('');
+            setError({ type: '', message: '' });
+            setNewRedirectUrls({ iosUrl: '', androidUrl: '', backupUrl: '' });
+            
+            // Use the reset function
+            await resetAndReload();
+            
+            setFormNotification({
+                message: 'Page redirect added successfully!',
+                type: 'success'
+            });
+            
+            setNotification({
+                message: 'Page redirect added successfully!',
+                type: 'success'
+            });
+            
+            setTimeout(() => {
+                setNotification(null);
+                setFormNotification(null);
+            }, 5000);
+        } else {
+            throw new Error(data.data || 'Save failed');
+        }
+    } catch (error) {
+        setNotification({
+            message: `Error adding page redirect: ${error.message}`,
+            type: 'error'
+        });
+    }
+};
 
     
     // URL format validation function
@@ -830,6 +842,26 @@ const handlePaginationChange = (newPage) => {
   setTimeout(smoothScrollToTop, 100);
   //setTimeout(smoothScrollToTop, 300);
 };
+
+const dismissReviewRequest = async () => {
+  try {
+    const formData = new FormData();
+    formData.append('action', 'dbre_dismiss_review');
+    formData.append('nonce', deviceRedirectData.nonce);
+    
+    const response = await fetch(deviceRedirectData.ajaxUrl, {
+      method: 'POST',
+      body: formData
+    });
+    
+    if (response.ok) {
+      setShowReviewRequest(false);
+    }
+  } catch (error) {
+    console.error('Error dismissing review request:', error);
+  }
+};
+
     return (
       <div className="wrap">
         <h1>Device-Based Redirects</h1>
@@ -1525,6 +1557,44 @@ const handlePaginationChange = (newPage) => {
                   </span>
                 </div>
               </div>
+              {showReviewRequest && (
+                <div className="review-request-wrapper">
+                  <div className="review-request notice notice-info is-dismissible">
+                    <div className="review-content">
+                      <h3>🌟 Enjoying Device Based Redirect?</h3>
+                      <p>
+                        If you find this plugin helpful, please consider leaving a review on WordPress.org. 
+                        Your feedback helps others discover the plugin and encourages continued development!
+                      </p>
+                      <div className="review-actions">
+                        <a 
+                          href="https://wordpress.org/support/plugin/device-based-redirect/reviews/#new-post" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="button button-primary"
+                        >
+                          Leave a Review
+                        </a>
+                        <a 
+                          href="https://github.com/ncherian/device-based-redirect/issues/new" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="button"
+                        >
+                          Request a Feature
+                        </a>
+                      </div>
+                    </div>
+                    <button 
+                      type="button" 
+                      className="notice-dismiss"
+                      onClick={dismissReviewRequest}
+                    >
+                      <span className="screen-reader-text">Dismiss this notice.</span>
+                    </button>
+                  </div>
+                </div>
+              )}
           </div>
         </div>
       </div>
