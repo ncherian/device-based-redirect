@@ -34,6 +34,7 @@ const DeviceRedirectSettings = () => {
 
   const [addRedirectType, setAddRedirectType] = useState('page');
   const [newRedirectUrls, setNewRedirectUrls] = useState({
+    title: '',
     iosUrl: '',
     androidUrl: '',
     backupUrl: ''
@@ -297,6 +298,7 @@ const DeviceRedirectSettings = () => {
 
           const newRedirect = {
               slug: cleanSlug,
+              title: newRedirectUrls.title || '',
               iosUrl: newRedirectUrls.iosUrl,
               androidUrl: newRedirectUrls.androidUrl,
               backupUrl: newRedirectUrls.backupUrl,
@@ -320,6 +322,7 @@ const DeviceRedirectSettings = () => {
           updatedSlugRedirects.forEach(redirect => {
               settings[redirect.slug] = {
                   type: 'custom',
+                  title: redirect.title || '',
                   ios_url: redirect.iosUrl,
                   android_url: redirect.androidUrl,
                   backup_url: redirect.backupUrl,
@@ -343,7 +346,12 @@ const DeviceRedirectSettings = () => {
               // Reset form
               setNewSlug('');
               setError({ type: '', message: '' });
-              setNewRedirectUrls({ iosUrl: '', androidUrl: '', backupUrl: '' });
+              setNewRedirectUrls({ 
+                  title: '',
+                  iosUrl: '', 
+                  androidUrl: '', 
+                  backupUrl: '' 
+              });
               
               // Use the new reset function
               await resetAndReload();
@@ -414,6 +422,7 @@ const DeviceRedirectSettings = () => {
     setEditingValues(prev => ({
       ...prev,
       [redirect.id]: {
+        title: redirect.title || '',
         iosUrl: redirect.iosUrl,
         androidUrl: redirect.androidUrl,
         backupUrl: redirect.backupUrl
@@ -471,14 +480,10 @@ const DeviceRedirectSettings = () => {
     }
 
     try {
-      const formData = new FormData();
-      formData.append('action', 'save_device_redirect_settings');
-      formData.append('nonce', deviceRedirectData.nonce);
-      
-      // Create settings object with just the edited redirect
       const settings = {
         [redirect.reference_id]: {
           type: redirect.type,
+          title: editedValues.title || '',
           ios_url: editedValues.iosUrl,
           android_url: editedValues.androidUrl,
           backup_url: editedValues.backupUrl,
@@ -486,6 +491,10 @@ const DeviceRedirectSettings = () => {
         }
       };
 
+      const formData = new FormData();
+      formData.append('action', 'save_device_redirect_settings');
+      formData.append('nonce', deviceRedirectData.nonce);
+      
       formData.append('settings', JSON.stringify(settings));
       
       const response = await fetch(deviceRedirectData.ajaxUrl, {
@@ -628,6 +637,7 @@ const DeviceRedirectSettings = () => {
               selectedRedirects.forEach(redirect => {
                   settings[redirect.reference_id] = {
                       type: redirect.type,
+                      title: redirect.title || '',
                       ios_url: redirect.iosUrl,
                       android_url: redirect.androidUrl,
                       backup_url: redirect.backupUrl,
@@ -1007,6 +1017,19 @@ const dismissReviewRequest = async () => {
                 </div>
               ) : (
                 <div className="add-new">
+                  <div className="title-input-section">
+                    <label>Title (Optional)</label>
+                    <input
+                      type="text"
+                      value={newRedirectUrls.title}
+                      onChange={(e) => {
+                        setNewRedirectUrls(prev => ({ ...prev, title: e.target.value }));
+                      }}
+                      placeholder="Enter a title for this redirect"
+                      className="regular-text"
+                    />
+                  </div>
+                  
                   <div className="slug-input-section">
                     <label>Custom URL Slug</label>
                     <input
@@ -1191,7 +1214,7 @@ const dismissReviewRequest = async () => {
                         onChange={handleSelectAll}
                       />
                     </td>
-                    <th>Page/Custom URL</th>
+                    <th>Title/URL</th>
                     <th>Type</th>
                     <th>Redirected URLs</th>
                     <th>Enabled</th>
@@ -1215,7 +1238,31 @@ const dismissReviewRequest = async () => {
                       </th>
                       <td data-label="Page/Custom URL">
                         <div className="page-url-container">
-                          <div className="page-title">{redirect.displayTitle}</div>
+                          <div className="page-title">
+                            {redirect.type === 'page' ? (
+                              redirect.displayTitle
+                            ) : (
+                              editingRedirects[redirect.id] ? (
+                                <input
+                                  type="text"
+                                  value={editingValues[redirect.id].title}
+                                  onChange={(e) => {
+                                    setEditingValues(prev => ({
+                                      ...prev,
+                                      [redirect.id]: {
+                                        ...prev[redirect.id],
+                                        title: e.target.value
+                                      }
+                                    }));
+                                  }}
+                                  placeholder="Enter title"
+                                  className="regular-text"
+                                />
+                              ) : (
+                                redirect.title || '—'
+                              )
+                            )}
+                          </div>
                           <a 
                             href={redirect.displayUrl} 
                             target="_blank" 
@@ -1437,6 +1484,7 @@ const dismissReviewRequest = async () => {
                               const settings = {
                                 [redirect.reference_id]: {
                                   type: redirect.type,
+                                  title: redirect.title || '',
                                   ios_url: redirect.iosUrl,
                                   android_url: redirect.androidUrl,
                                   backup_url: redirect.backupUrl,

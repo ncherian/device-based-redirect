@@ -35,11 +35,12 @@ function dbre_check_version() {
         global $wpdb;
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
 
-        // Create redirects table if it doesn't exist
+        // Create or update redirects table
         $redirects_sql = "CREATE TABLE IF NOT EXISTS " . dbre_get_table_name() . " (
             `id` bigint(20) NOT NULL AUTO_INCREMENT,
             `type` enum('page', 'custom') NOT NULL,
             `reference_id` varchar(191) NOT NULL,
+            `title` varchar(191) DEFAULT NULL,
             `ios_url` text DEFAULT NULL,
             `android_url` text DEFAULT NULL,
             `backup_url` text DEFAULT NULL,
@@ -53,6 +54,15 @@ function dbre_check_version() {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
 
         dbDelta($redirects_sql);
+
+        // Check if title column exists
+        $table_name = dbre_get_table_name();
+        $row = $wpdb->get_results("SHOW COLUMNS FROM {$table_name} LIKE 'title'");
+        
+        if (empty($row)) {
+            // Add title column if it doesn't exist
+            $wpdb->query("ALTER TABLE {$table_name} ADD COLUMN `title` varchar(191) DEFAULT NULL AFTER `reference_id`");
+        }
 
         // Run migration if needed
         if (version_compare($current_db_version, DBRE_DB_VERSION, '<')) {
@@ -96,12 +106,12 @@ add_action('wp_ajax_dbre_dismiss_review', 'dbre_handle_dismiss_review');
 // define('DEVICE_REDIRECT_MINIMUM_WP_VERSION', '5.0');
 // define('DEVICE_REDIRECT_MINIMUM_PHP_VERSION', '7.2');
 // URL pattern constants
-define('DBRE_VERSION', '1.1.3');
+define('DBRE_VERSION', '1.1.6');
 define('DBRE_IOS_URL_PATTERN', '/^https:\/\/apps\.apple\.com/');
 define('DBRE_ANDROID_URL_PATTERN', '/^https:\/\/play\.google\.com/');
 // Option names
 define('DBRE_SETTINGS_KEY', 'dbre_entries');
-define('DBRE_DB_VERSION', '1.0');
+define('DBRE_DB_VERSION', '1.1');
 
 function dbre_menu() {
     add_menu_page(
@@ -189,12 +199,12 @@ function dbre_save_settings() {
         $deleted_count = 0;
 
         foreach ($settings as $key => $value) {
-            // Use the type from the data instead of inferring from key
             $type = isset($value['type']) ? $value['type'] : 'custom';
             
             $redirect_data = [
                 'type' => $type,
                 'reference_id' => $key,
+                'title' => isset($value['title']) ? sanitize_text_field($value['title']) : null,
                 'ios_url' => isset($value['ios_url']) ? esc_url_raw($value['ios_url']) : '',
                 'android_url' => isset($value['android_url']) ? esc_url_raw($value['android_url']) : '',
                 'backup_url' => isset($value['backup_url']) ? esc_url_raw($value['backup_url']) : '',
@@ -684,7 +694,8 @@ function dbre_run_migration() {
                         WHERE type = %s AND reference_id = %s",
                         $type,
                         $reference_id
-                ));
+                    )
+                );
 
                 if (!$existing) {
                     // Only insert if entry doesn't exist
@@ -694,6 +705,7 @@ function dbre_run_migration() {
                         [
                             'type' => $type,
                             'reference_id' => $reference_id,
+                            'title' => $value['title'] ?? null,
                             'ios_url' => $value['ios_url'] ?? null,
                             'android_url' => $value['android_url'] ?? null,
                             'backup_url' => $value['backup_url'] ?? null,
@@ -703,7 +715,7 @@ function dbre_run_migration() {
                             'order' => 0
                         ],
                         [
-                            '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%d'
+                            '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%d'
                         ]
                     );
 
@@ -824,6 +836,7 @@ function dbre_get_redirects_paginated($request) {
             'id' => (int)$item['id'],
             'type' => $item['type'],
             'reference_id' => $item['reference_id'],
+            'title' => $item['title'],
             'iosUrl' => $item['ios_url'],
             'androidUrl' => $item['android_url'],
             'backupUrl' => $item['backup_url'],
@@ -836,7 +849,7 @@ function dbre_get_redirects_paginated($request) {
             $formatted['displayTitle'] = $page ? $page->post_title : $item['reference_id'];
             $formatted['displayUrl'] = $page ? get_permalink($page->ID) : home_url($item['reference_id']);
         } else {
-            $formatted['displayTitle'] = $item['reference_id'];
+            $formatted['displayTitle'] = $item['title'] ?: $item['reference_id'];
             $formatted['displayUrl'] = home_url($item['reference_id']);
         }
 
@@ -932,6 +945,7 @@ function dbre_get_entry($request) {
         'id' => (int)$entry['id'],
         'type' => $entry['type'],
         'reference_id' => $entry['reference_id'],
+        'title' => $entry['title'],
         'iosUrl' => $entry['ios_url'],
         'androidUrl' => $entry['android_url'],
         'backupUrl' => $entry['backup_url'],
@@ -944,7 +958,7 @@ function dbre_get_entry($request) {
         $formatted['displayTitle'] = $page ? $page->post_title : $entry['reference_id'];
         $formatted['displayUrl'] = $page ? get_permalink($page->ID) : home_url($entry['reference_id']);
     } else {
-        $formatted['displayTitle'] = $entry['reference_id'];
+        $formatted['displayTitle'] = $entry['title'] ?: $entry['reference_id'];
         $formatted['displayUrl'] = home_url($entry['reference_id']);
     }
     

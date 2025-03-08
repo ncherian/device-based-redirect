@@ -1284,3 +1284,50 @@
 .review-actions .button {
   text-decoration: none;
 }
+
+.title-input-section {
+  margin-bottom: 15px;
+}
+
+.title-input-section label {
+  display: block;
+  font-weight: 500;
+  color: #23282d;
+  font-size: 14px;
+  margin-bottom: 5px;
+}
+
+.title-input-section input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #8c8f94;
+  border-radius: 4px;
+}
+
+.title-input-section input:focus {
+  border-color: #2271b1;
+  box-shadow: 0 0 0 1px #2271b1;
+  outline: none;
+}
+
+/* Update page title styles */
+.page-title {
+  font-weight: 500;
+  color: #23282d;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.page-title input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #8c8f94;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.page-title input:focus {
+  border-color: #2271b1;
+  box-shadow: 0 0 0 1px #2271b1;
+  outline: none;
+}
