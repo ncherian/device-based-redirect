@@ -3,7 +3,7 @@
 Plugin Name: Device-Based Redirect
 Plugin URI:  https://github.com/ncherian/device-based-redirect
 Description: Device-Based Redirect enables dynamic redirection of users to mobile-friendly URLs or the App Store/Google Play Store, tailored to their device type (iOS/Android).You can select specific pages or set up custom URLs effortlessly.
-Version:     1.1.5
+Version:     1.1.6
 Author:      Indimakes
 Author URI:  https://indimakes.com
 License:     GPL2
@@ -57,11 +57,18 @@ function dbre_check_version() {
 
         // Check if title column exists
         $table_name = dbre_get_table_name();
-        $row = $wpdb->get_results("SHOW COLUMNS FROM {$table_name} LIKE 'title'");
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $row = $wpdb->get_results(
+            $wpdb->prepare(
+                "SHOW COLUMNS FROM `" . esc_sql($table_name) . "` WHERE Field = %s",
+                'title'
+            )
+        );
         
         if (empty($row)) {
             // Add title column if it doesn't exist
-            $wpdb->query("ALTER TABLE {$table_name} ADD COLUMN `title` varchar(191) DEFAULT NULL AFTER `reference_id`");
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
+            $wpdb->query("ALTER TABLE `" . esc_sql($table_name) . "` ADD COLUMN `title` varchar(191) DEFAULT NULL AFTER `reference_id`");
         }
 
         // Run migration if needed
