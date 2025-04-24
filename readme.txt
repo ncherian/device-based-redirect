@@ -3,8 +3,8 @@ Contributors: ncherian
 Donate link: https://www.buymeacoffee.com/indimakes
 Tags: mobile redirect, redirection, redirect, android, ios
 Requires at least: 5.0
-Tested up to: 6.7
-Stable tag: 1.1.6
+Tested up to: 6.8
+Stable tag: 1.2.0
 Requires PHP: 7.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -25,6 +25,7 @@ Features:
 * Easy-to-use admin interface - Simple configuration through WordPress admin panel
 * Bulk enable/disable option - Quickly turn all redirects on/off
 * Transient Cache for end-user redirects - Reduces database load for high traffic sites
+* Titles for Custom URL Redirects for better organizing of redirects
 
 Use Cases:
 
@@ -60,6 +61,9 @@ No, it is optional. If not set, users will be redirected to the current page for
 = What is the nature of redirects? =
 Redirects are of 302 type as they are not permanent.
 
+= Will the redirection work on dynamic resizing of pages in web? =
+No, the redirection happens when the page is loaded and not on dynamic resizing of pages in web.
+
 == Screenshots ==
 
 1. Accessing Device Redirect Settings Page
@@ -69,6 +73,9 @@ Redirects are of 302 type as they are not permanent.
 5. Add Slug or Page Redirects on left sidebar
 
 == Changelog ==
+
+= 1.2.0 =
+* Compatibility with WordPress 6.8
 
 = 1.1.6 =
 * Added Title option for Custom URL Redirects
@@ -102,6 +109,9 @@ Redirects are of 302 type as they are not permanent.
 * Initial release
 
 == Upgrade Notice ==
+
+= 1.2.0 =
+* Compatibility with WordPress 6.8
 
 = 1.1.6 =
 * Added Title option for Custom URL Redirects
