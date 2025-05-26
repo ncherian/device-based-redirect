@@ -552,6 +552,10 @@ function dbre_handle_custom_slugs($wp) {
         $current_slug = $request_path;
     }
 
+    // Remove query strings and any trailing slashes
+    $current_slug = strtok($current_slug, '?');
+    $current_slug = rtrim($current_slug, '/');
+
     // Try to get from cache first
     $cache_key = 'dbre_custom_redirect_' . md5($current_slug);
     $redirect = get_transient($cache_key);
@@ -599,7 +603,7 @@ function dbre_handle_custom_slugs($wp) {
                 'ios' => esc_url($redirect['ios_url']),
                 'android' => esc_url($redirect['android_url']),
                 'backup' => esc_url($redirect['backup_url']),
-                'current' => esc_url(home_url(add_query_arg(NULL, NULL))),
+                'current' => esc_url(home_url($current_slug)),
                 'isStoreUrl' => (
                     ($is_ios && !empty($redirect['ios_url']) && preg_match(DBRE_IOS_URL_PATTERN, $redirect['ios_url'])) ||
                     ($is_android && !empty($redirect['android_url']) && preg_match(DBRE_ANDROID_URL_PATTERN, $redirect['android_url']))
