@@ -4,7 +4,7 @@ Donate link: https://www.buymeacoffee.com/indimakes
 Tags: mobile redirect, redirection, redirect, android, ios
 Requires at least: 5.0
 Tested up to: 6.8
-Stable tag: 1.2.0
+Stable tag: 1.2.1
 Requires PHP: 7.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -46,6 +46,9 @@ The plugin handles user agent detection and routing automatically, making it eas
 
 == Frequently Asked Questions ==
 
+= Will this plugin work with plain permalinks? =
+No, this plugin requires the use of pretty permalinks.
+
 = Can I set different redirects for different pages? =
 Yes, you can configure page-specific redirects as well as custom URL redirects.
 
@@ -73,6 +76,9 @@ No, the redirection happens when the page is loaded and not on dynamic resizing 
 5. Add Slug or Page Redirects on left sidebar
 
 == Changelog ==
+
+= 1.2.1 =
+* Fixed issue with Params added in redirect URLs by Hosting Providers
 
 = 1.2.0 =
 * Compatibility with WordPress 6.8
@@ -109,6 +115,9 @@ No, the redirection happens when the page is loaded and not on dynamic resizing 
 * Initial release
 
 == Upgrade Notice ==
+
+= 1.2.1 =
+* Fixed issue with Params added in redirect URLs by Hosting Providers
 
 = 1.2.0 =
 * Compatibility with WordPress 6.8
