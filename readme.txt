@@ -3,8 +3,8 @@ Contributors: ncherian
 Donate link: https://www.buymeacoffee.com/indimakes
 Tags: mobile redirect, redirection, redirect, android, ios
 Requires at least: 5.0
-Tested up to: 6.9.4
-Stable tag: 1.2.2
+Tested up to: 7.0
+Stable tag: 1.2.3
 Requires PHP: 7.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -77,6 +77,9 @@ No, the redirection happens when the page is loaded and not on dynamic resizing 
 
 == Changelog ==
 
+= 1.2.3 =
+* Compatibility with WordPress 7.0
+
 = 1.2.2 =
 * Compatibility with WordPress 6.9.4
 * Plugin Icon Rebranding
@@ -119,6 +122,9 @@ No, the redirection happens when the page is loaded and not on dynamic resizing 
 * Initial release
 
 == Upgrade Notice ==
+
+= 1.2.3 =
+* Compatibility with WordPress 7.0
 
 = 1.2.2 =
 * Compatibility with WordPress 6.9.4
